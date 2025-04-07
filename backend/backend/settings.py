@@ -25,7 +25,10 @@ import os
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "insecure-dev-key")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+import os
+
+DEBUG = os.environ.get("DEBUG", "True") == "True"
+
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost", "10.0.2.2","*"]
 
@@ -178,5 +181,3 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-SECRET_KEY = "CLS5_A1B2C3"
