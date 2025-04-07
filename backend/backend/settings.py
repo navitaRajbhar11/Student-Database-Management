@@ -29,9 +29,9 @@ import os
 
 DEBUG = os.environ.get("DEBUG", "True") == "True"
 
+import os
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "10.0.2.2","*"]
-
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
 
 
 # Application definition
