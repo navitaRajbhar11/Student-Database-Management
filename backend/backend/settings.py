@@ -25,11 +25,10 @@ import os
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "insecure-dev-key")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-import os
 
 DEBUG = os.environ.get("DEBUG", "True") == "True"
 
-import os
+#host
 
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
 
@@ -84,15 +83,8 @@ TEMPLATES = [
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",  # ✅ Add your frontend URL (React/Vite)
-    "http://127.0.0.1:8000",
-]
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:8000",
-]
+CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:5173").split(",")
+CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 
 CORS_ALLOW_ALL_ORIGINS = False  # Security: Set to False
 CORS_ALLOW_CREDENTIALS = True
@@ -105,12 +97,12 @@ CORS_ALLOW_CREDENTIALS = True  # Important for CSRF & Cookies
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 
 
 
