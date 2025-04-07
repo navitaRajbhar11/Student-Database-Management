@@ -82,13 +82,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-
-CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:5173").split(",")
-CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
-
-CORS_ALLOW_ALL_ORIGINS = False  # Security: Set to False
-CORS_ALLOW_CREDENTIALS = True
-CSRF_COOKIE_HTTPONLY = False
+CSRF_TRUSTED_ORIGINS=https://student-backend-8oa3.onrender.com,http://localhost:5173
+CORS_ALLOWED_ORIGINS=https://student-backend-8oa3.onrender.com,http://localhost:5173
 
 
 CORS_ALLOW_CREDENTIALS = True  # Important for CSRF & Cookies
