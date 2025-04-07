@@ -28,9 +28,6 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "insecure-dev-key")
 
 DEBUG = os.environ.get("DEBUG", "True") == "True"
 
-#host
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "student-backend-8oa3.onrender.com"]
-
 
 # Application definition
 
@@ -81,8 +78,18 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-CSRF_TRUSTED_ORIGINS=https://student-backend-8oa3.onrender.com,http://localhost:5173
-CORS_ALLOWED_ORIGINS=https://student-backend-8oa3.onrender.com,http://localhost:5173
+import os
+
+# Security settings
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost,student-backend-8oa3.onrender.com").split(",")
+
+# CORS & CSRF
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "http://localhost:5173").split(",")
+CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
+CSRF_COOKIE_HTTPONLY = False
 
 
 CORS_ALLOW_CREDENTIALS = True  # Important for CSRF & Cookies
