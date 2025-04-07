@@ -29,8 +29,7 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "insecure-dev-key")
 DEBUG = os.environ.get("DEBUG", "True") == "True"
 
 #host
-
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "student-backend-8oa3.onrender.com"]
 
 
 # Application definition
