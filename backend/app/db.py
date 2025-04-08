@@ -1,23 +1,16 @@
 from pymongo import MongoClient
-import os
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+MONGO_URI = "mongodb+srv://navita:Rnavita02@cluster0.f1auc.mongodb.net/studentApp?retryWrites=true&w=majority"
 
-# Fetch the MongoDB URL from the environment variable
-MONGO_URL = os.getenv("MONGODB_URL")
-
-# Create a MongoDB connection
+# Create a Single Persistent MongoDB Connection
 try:
-    client = MongoClient(MONGO_URL)
+    client = MongoClient(MONGO_URI)
     db = client["studentApp"]
     print("MongoDB Connected Successfully")
 except Exception as e:
     print(f"Failed to connect to MongoDB: {e}")
     exit(1)
 
-# Define functions to get MongoDB collections
 def get_students_collection():
     return db.students
 
