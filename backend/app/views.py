@@ -230,8 +230,6 @@ class AdminListAssignmentView(APIView):
         return Response(assignment_list, status=status.HTTP_200_OK)
 
 #-----Submission-------
-# List Submissions (Admin Side)
-
 class ListSubmissionsView(APIView):
     def get(self, request):
         class_grade = request.query_params.get("class_grade")
@@ -526,47 +524,69 @@ class StudentSubmitAssignmentView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request):
+        print("🔥 Received POST request for assignment submission")
+
         student_name = request.data.get("student_name")
         student_class = request.data.get("class")
         assignment_title = request.data.get("assignment_title")
         due_date = request.data.get("due_date")
         file = request.FILES.get("file")
 
+        print(f"✅ student_name: {student_name}")
+        print(f"✅ student_class: {student_class}")
+        print(f"✅ assignment_title: {assignment_title}")
+        print(f"✅ due_date: {due_date}")
+        print(f"✅ file: {file}")
+        if file:
+            print(f"📂 file.name: {file.name}")
+            print(f"📄 file.content_type: {file.content_type}")
+
+        # Check for missing fields
         if not all([student_name, student_class, assignment_title, due_date, file]):
+            print("❌ Missing required fields")
             return Response({"error": "All fields are required"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Check allowed file types
         allowed_extensions = ["pdf", "docx"]
         file_extension = file.name.split(".")[-1].lower()
         if file_extension not in allowed_extensions:
+            print(f"❌ Invalid file extension: {file_extension}")
             return Response({"error": "Only PDF and DOCX files are allowed."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # ✅ Upload file to Cloudinary
+        # Upload to Cloudinary
         try:
+            print("📤 Uploading file to Cloudinary...")
             uploaded = cloudinary.uploader.upload(
                 file,
                 folder="assignments",
                 resource_type="auto"
             )
             file_url = uploaded["secure_url"]
+            print("✅ Upload success. File URL:", file_url)
         except Exception as e:
-            print("Cloudinary Upload Error:", e)
+            print("❌ Cloudinary Upload Error:", e)
             return Response({"error": "Failed to upload file to Cloudinary."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Save in MongoDB
-        submissions_collection = get_submissions_collection()
-        submission_data = {
-            "student_name": student_name,
-            "class": student_class,
-            "assignment_title": assignment_title,
-            "due_date": due_date,
-            "filename": file.name,
-            "file_url": file_url,  # ✅ Cloudinary URL
-            "content_type": file.content_type,
-            "submitted_at": datetime.datetime.utcnow().isoformat(),
-            "status": "Pending"
-        }
+        # Save submission to MongoDB
+        try:
+            submissions_collection = get_submissions_collection()
+            submission_data = {
+                "student_name": student_name,
+                "class": student_class,
+                "assignment_title": assignment_title,
+                "due_date": due_date,
+                "filename": file.name,
+                "file_url": file_url,
+                "content_type": file.content_type,
+                "submitted_at": datetime.datetime.utcnow().isoformat(),
+                "status": "Pending"
+            }
+            print("💾 Inserting submission into MongoDB:", submission_data)
+            submissions_collection.insert_one(submission_data)
+        except Exception as e:
+            print("❌ MongoDB Insert Error:", e)
+            return Response({"error": "Failed to save submission."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        submissions_collection.insert_one(submission_data)
         return Response({"message": "Assignment submitted successfully"}, status=status.HTTP_201_CREATED)
 
 
