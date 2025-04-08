@@ -519,7 +519,6 @@ class StudentListAssignmentsView(APIView):
 
         return Response(assignment_list, status=status.HTTP_200_OK)
 
-
 class StudentSubmitAssignmentView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
@@ -552,6 +551,13 @@ class StudentSubmitAssignmentView(APIView):
         if file_extension not in allowed_extensions:
             print(f"❌ Invalid file extension: {file_extension}")
             return Response({"error": "Only PDF and DOCX files are allowed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate due_date (ensure it's a valid date)
+        try:
+            datetime.datetime.strptime(due_date, "%Y-%m-%d")
+        except ValueError:
+            print("❌ Invalid due_date format")
+            return Response({"error": "Invalid due_date format. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Upload to Cloudinary
         try:
@@ -588,7 +594,6 @@ class StudentSubmitAssignmentView(APIView):
             return Response({"error": "Failed to save submission."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({"message": "Assignment submitted successfully"}, status=status.HTTP_201_CREATED)
-
 
 #videos
 
