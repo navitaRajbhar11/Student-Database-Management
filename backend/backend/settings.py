@@ -10,29 +10,28 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
-
 import os
-from pathlib import Path
 from dotenv import load_dotenv
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# Load environment variables from .env file
+load_dotenv()
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+# MongoDB configuration
+MONGO_URL = os.getenv("MONGODB_URL")
 
-# ✅ Load environment variables early
-load_dotenv(os.path.join(BASE_DIR, '.env'))
+# Cloudinary settings (if using Cloudinary for media storage)
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
 
-import cloudinary
-import os
-
-cloudinary.config( 
-  cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME'), 
-  api_key = os.getenv('CLOUDINARY_API_KEY'), 
-  api_secret = os.getenv('CLOUDINARY_API_SECRET')
-)
-
-
+# Cloudinary configuration for Django
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.getenv("CLOUDINARY_CLOUD_NAME"),
+    'API_KEY': os.getenv("CLOUDINARY_API_KEY"),
+    'API_SECRET': os.getenv("CLOUDINARY_API_SECRET"),
+}
 
 
 # Quick-start development settings - unsuitable for production
