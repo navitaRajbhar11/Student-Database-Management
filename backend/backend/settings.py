@@ -10,34 +10,31 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
-
+import os
 from pathlib import Path
+from dotenv import load_dotenv
+import cloudinary
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-import os
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-
-# Fetch the Cloudinary URL from the environment variable
 CLOUDINARY_URL = os.getenv("CLOUDINARY_URL")
+cloudinary.config(secure=True)  # Optional, enables HTTPS
 
-# Cloudinary settings for Django
+MEDIA_URL = '/media/'
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 CLOUDINARY_STORAGE = {
     'CLOUDINARY_URL': CLOUDINARY_URL,
 }
+print("Cloudinary URL:", CLOUDINARY_URL)
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-import os
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "insecure-dev-key")
 
@@ -187,3 +184,4 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
