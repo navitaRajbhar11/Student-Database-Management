@@ -28,7 +28,6 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "insecure-dev-key")
 
 DEBUG = os.environ.get("DEBUG", "True") == "True"
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -78,6 +77,14 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
+#Host
+import os
+from dotenv import load_dotenv
+
+# Load .env
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+
+
 
 # Security settings
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost,student-backend-8oa3.onrender.com").split(",")
@@ -90,11 +97,7 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
 CSRF_COOKIE_HTTPONLY = False
 
-
 CORS_ALLOW_CREDENTIALS = True  # Important for CSRF & Cookies
-
-# Storage
-
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
@@ -166,10 +169,6 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 # settings.py
-import os
-
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 
 # Default primary key field type
