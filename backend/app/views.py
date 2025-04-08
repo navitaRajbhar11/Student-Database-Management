@@ -12,6 +12,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.files.storage import default_storage
 import cloudinary.uploader  # make sure cloudinary is installed and configured
 import os
+import uuid
 from django.conf import settings
 from django.views import View
 from bson import Binary
@@ -519,6 +520,7 @@ class StudentListAssignmentsView(APIView):
 
         return Response(assignment_list, status=status.HTTP_200_OK)
 
+
 class StudentSubmitAssignmentView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
@@ -536,6 +538,7 @@ class StudentSubmitAssignmentView(APIView):
         print(f"✅ assignment_title: {assignment_title}")
         print(f"✅ due_date: {due_date}")
         print(f"✅ file: {file}")
+
         if file:
             print(f"📂 file.name: {file.name}")
             print(f"📄 file.content_type: {file.content_type}")
@@ -552,28 +555,37 @@ class StudentSubmitAssignmentView(APIView):
             print(f"❌ Invalid file extension: {file_extension}")
             return Response({"error": "Only PDF and DOCX files are allowed."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Validate due_date (ensure it's a valid date)
+        # Optional: File size check (e.g., max 10MB)
+        if file.size > 10 * 1024 * 1024:
+            print(f"❌ File too large: {file.size}")
+            return Response({"error": "File too large. Max size is 10MB."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate due_date
         try:
             datetime.datetime.strptime(due_date, "%Y-%m-%d")
         except ValueError:
             print("❌ Invalid due_date format")
             return Response({"error": "Invalid due_date format. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Upload to Cloudinary
+        # Upload to Cloudinary with UUID
         try:
-            print("📤 Uploading file to Cloudinary...")
+            unique_filename = f"{uuid.uuid4()}_{file.name}"
+            print("📤 Uploading file to Cloudinary:", unique_filename)
+
             uploaded = cloudinary.uploader.upload(
                 file,
                 folder="assignments",
+                public_id=unique_filename,
                 resource_type="auto"
             )
             file_url = uploaded["secure_url"]
+            cloudinary_id = uploaded["public_id"]
             print("✅ Upload success. File URL:", file_url)
         except Exception as e:
             print("❌ Cloudinary Upload Error:", e)
             return Response({"error": "Failed to upload file to Cloudinary."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Save submission to MongoDB
+        # Save to MongoDB
         try:
             submissions_collection = get_submissions_collection()
             submission_data = {
@@ -583,6 +595,7 @@ class StudentSubmitAssignmentView(APIView):
                 "due_date": due_date,
                 "filename": file.name,
                 "file_url": file_url,
+                "cloudinary_id": cloudinary_id,
                 "content_type": file.content_type,
                 "submitted_at": datetime.datetime.utcnow().isoformat(),
                 "status": "Pending"
@@ -593,7 +606,10 @@ class StudentSubmitAssignmentView(APIView):
             print("❌ MongoDB Insert Error:", e)
             return Response({"error": "Failed to save submission."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return Response({"message": "Assignment submitted successfully"}, status=status.HTTP_201_CREATED)
+        return Response({
+            "message": "Assignment submitted successfully",
+            "file_url": file_url
+        }, status=status.HTTP_201_CREATED)
 
 #videos
 
