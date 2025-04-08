@@ -1,5 +1,5 @@
-import os
 from pymongo import MongoClient
+import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -8,9 +8,9 @@ load_dotenv()
 # Fetch the MongoDB URL from the environment variable
 MONGO_URL = os.getenv("MONGODB_URL")
 
-# Create a Single Persistent MongoDB Connection
+# Create a MongoDB connection
 try:
-    client = MongoClient(MONGO_URL)  # Use the correct environment variable
+    client = MongoClient(MONGO_URL)
     db = client["studentApp"]
     print("MongoDB Connected Successfully")
 except Exception as e:
