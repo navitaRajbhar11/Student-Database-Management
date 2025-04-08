@@ -78,7 +78,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-import os
 
 # Security settings
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost,student-backend-8oa3.onrender.com").split(",")
@@ -93,6 +92,9 @@ CSRF_COOKIE_HTTPONLY = False
 
 
 CORS_ALLOW_CREDENTIALS = True  # Important for CSRF & Cookies
+
+# Storage
+
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
