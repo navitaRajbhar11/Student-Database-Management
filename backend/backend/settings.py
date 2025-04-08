@@ -10,10 +10,29 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# ✅ Load environment variables early
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
+
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
+    'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
+}
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 
 # Quick-start development settings - unsuitable for production
@@ -42,6 +61,8 @@ INSTALLED_APPS = [
     'corsheaders',
     "django.contrib.sites",
     'app',
+    'cloudinary',
+    'cloudinary_storage',
 ]
 
 
@@ -76,13 +97,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'backend.wsgi.application'
-
-#Host
-import os
-from dotenv import load_dotenv
-
-# Load .env
-load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 
 
