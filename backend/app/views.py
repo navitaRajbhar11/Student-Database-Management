@@ -233,13 +233,6 @@ class AdminListAssignmentView(APIView):
         return Response(assignment_list, status=status.HTTP_200_OK)
 
 #-----Submission-------
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from urllib.parse import urljoin
-import datetime
-
-from .mongodb import get_submissions_collection  # Update path if needed
 
 BASE_URL = "https://student-backend-8oa3.onrender.com"  # Used only for local files, not Cloudinary
 
