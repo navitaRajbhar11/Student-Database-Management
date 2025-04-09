@@ -10,26 +10,23 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
-import os
 from pathlib import Path
+import os
 from dotenv import load_dotenv
 import cloudinary
 
-load_dotenv()
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-CLOUDINARY_URL = os.getenv("CLOUDINARY_URL")
-cloudinary.config(secure=True)  # Optional, enables HTTPS
+# Load .env file
+load_dotenv()
 
-MEDIA_URL = '/media/'
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-
-CLOUDINARY_STORAGE = {
-    'CLOUDINARY_URL': CLOUDINARY_URL,
-}
-print("Cloudinary URL:", CLOUDINARY_URL)
-
+# Cloudinary config
+cloudinary.config(
+    cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key = os.getenv("CLOUDINARY_API_KEY"),
+    api_secret = os.getenv("CLOUDINARY_API_SECRET"),
+    secure = True
+)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
