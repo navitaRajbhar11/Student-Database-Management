@@ -576,7 +576,7 @@ class StudentSubmitAssignmentView(APIView):
                 file,
                 folder="assignments",
                 public_id=unique_filename,
-                resource_type="auto"
+                resource_type="raw"
             )
             file_url = uploaded["secure_url"]
             cloudinary_id = uploaded["public_id"]
