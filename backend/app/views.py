@@ -562,14 +562,17 @@ class StudentSubmitAssignmentView(APIView):
         if not all([student_name, student_class, assignment_title, due_date, file]):
             return Response({"error": "All fields are required"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Validate file extension
         allowed_extensions = ["pdf", "docx"]
         file_extension = file.name.split(".")[-1].lower()
         if file_extension not in allowed_extensions:
             return Response({"error": "Only PDF and DOCX files are allowed."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Validate file size (max 10 MB)
         if file.size > 10 * 1024 * 1024:
             return Response({"error": "File too large. Max size is 10MB."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Validate due_date format
         try:
             datetime.datetime.strptime(due_date, "%Y-%m-%d")
         except ValueError:
@@ -583,20 +586,15 @@ class StudentSubmitAssignmentView(APIView):
                 folder="assignments",
                 use_filename=True,
                 unique_filename=False,
-                resource_type="auto"  # Let Cloudinary handle file type
+                resource_type="auto"
             )
             viewable_url = upload_result.get("secure_url")
 
-            # Create download URL (forces download)
-            public_id = upload_result.get("public_id")
-            file_format = upload_result.get("format")
-            cloud_name = upload_result.get("url").split("/")[3]  # auto-extract
-            download_url = f"https://res.cloudinary.com/{cloud_name}/raw/upload/fl_attachment/{public_id}.{file_format}"
+            # Optional: Create a download version
+            download_url = viewable_url.replace("/upload/", "/upload/fl_attachment/")
 
             print("✅ Uploaded to Cloudinary.")
             print("🔗 Viewable URL:", viewable_url)
-            print("📥 Download URL:", download_url)
-
         except Exception as e:
             print("❌ Cloudinary Upload Error:", e)
             return Response({"error": "Failed to upload to Cloudinary."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -611,7 +609,6 @@ class StudentSubmitAssignmentView(APIView):
                 "due_date": due_date,
                 "filename": file.name,
                 "file_url": viewable_url,
-                "download_url": download_url,
                 "content_type": file.content_type,
                 "submitted_at": datetime.datetime.utcnow().isoformat(),
                 "status": "Pending"
