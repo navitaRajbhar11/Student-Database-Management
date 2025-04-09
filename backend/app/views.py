@@ -9,6 +9,7 @@ from rest_framework import status
 from bson.objectid import ObjectId
 from bson.errors import InvalidId
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 import cloudinary.uploader  # make sure cloudinary is installed and configured
 import os
@@ -16,6 +17,7 @@ import uuid
 from django.conf import settings
 from django.views import View
 from bson import Binary
+from urllib.parse import urljoin
 import bcrypt
 import datetime
 import json
@@ -231,6 +233,9 @@ class AdminListAssignmentView(APIView):
         return Response(assignment_list, status=status.HTTP_200_OK)
 
 #-----Submission-------
+# 🌐 Deployed base URL
+BASE_URL = "https://student-backend-8oa3.onrender.com"
+
 class ListSubmissionsView(APIView):
     def get(self, request):
         class_grade = request.query_params.get("class_grade")
@@ -247,13 +252,20 @@ class ListSubmissionsView(APIView):
             if isinstance(submitted_at, datetime.datetime):
                 submitted_at = submitted_at.isoformat()
 
+            raw_file_url = submission.get("file_url", "")
+
+            # 🔗 Ensure file_url is full (especially for local files served via MEDIA)
+            full_file_url = (
+                urljoin(BASE_URL, raw_file_url) if not raw_file_url.startswith("http") else raw_file_url
+            )
+
             formatted = {
                 "_id": str(submission.get("_id", "")),
                 "student_name": submission.get("student_name", ""),
                 "class": submission.get("class", ""),
                 "assignment_title": submission.get("assignment_title", ""),
                 "filename": submission.get("filename", ""),
-                "file_url": submission.get("file_url", ""),  # safe access
+                "file_url": full_file_url,
                 "content_type": submission.get("content_type", ""),
                 "submitted_at": submitted_at,
                 "status": submission.get("status", "Pending")
@@ -541,58 +553,44 @@ class StudentSubmitAssignmentView(APIView):
         print(f"✅ due_date: {due_date}")
         print(f"✅ file: {file}")
 
-        if file:
-            print(f"📂 file.name: {file.name}")
-            print(f"📄 file.content_type: {file.content_type}")
-
-        # Check for missing fields
         if not all([student_name, student_class, assignment_title, due_date, file]):
             print("❌ Missing required fields")
             return Response({"error": "All fields are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check allowed file types
         allowed_extensions = ["pdf", "docx"]
         file_extension = file.name.split(".")[-1].lower()
         if file_extension not in allowed_extensions:
             print(f"❌ Invalid file extension: {file_extension}")
             return Response({"error": "Only PDF and DOCX files are allowed."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Optional: File size check (e.g., max 10MB)
         if file.size > 10 * 1024 * 1024:
             print(f"❌ File too large: {file.size}")
             return Response({"error": "File too large. Max size is 10MB."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Validate due_date
         try:
             datetime.datetime.strptime(due_date, "%Y-%m-%d")
         except ValueError:
             print("❌ Invalid due_date format")
             return Response({"error": "Invalid due_date format. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Upload to Cloudinary with UUID
+        # Save file locally
         try:
             unique_filename = f"{uuid.uuid4()}_{file.name}"
-            print("📤 Uploading file to Cloudinary:", unique_filename)
+            file_path = os.path.join("assignments", unique_filename)
 
-            uploaded = cloudinary.uploader.upload(
-                file,
-                folder="assignments",
-                public_id=unique_filename,
-                resource_type="raw"  # For non-image files like PDFs/DOCX
-            )
+            print("💾 Saving file locally:", file_path)
+            saved_path = default_storage.save(file_path, ContentFile(file.read()))
 
-            cloudinary_id = uploaded["public_id"]
+            # Build accessible URLs
+            viewable_url = os.path.join(settings.MEDIA_URL, saved_path)
+            download_url = viewable_url  # Same URL for both view and download in most browsers
 
-            # 🔽 Force download with original filename
-            file_url = uploaded["secure_url"].replace(
-                "/upload/",
-                f"/upload/fl_attachment:{file.name}/"
-            )
-
-            print("✅ Upload success. File URL:", file_url)
+            print("✅ File saved locally.")
+            print("🔗 Viewable URL:", viewable_url)
+            print("⬇️ Download URL:", download_url)
         except Exception as e:
-            print("❌ Cloudinary Upload Error:", e)
-            return Response({"error": "Failed to upload file to Cloudinary."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            print("❌ Local File Save Error:", e)
+            return Response({"error": "Failed to save file locally."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Save to MongoDB
         try:
@@ -603,13 +601,12 @@ class StudentSubmitAssignmentView(APIView):
                 "assignment_title": assignment_title,
                 "due_date": due_date,
                 "filename": file.name,
-                "file_url": file_url,
-                "cloudinary_id": cloudinary_id,
+                "file_url": viewable_url,
                 "content_type": file.content_type,
                 "submitted_at": datetime.datetime.utcnow().isoformat(),
                 "status": "Pending"
             }
-            print("💾 Inserting submission into MongoDB:", submission_data)
+            print("📝 Saving submission to MongoDB:", submission_data)
             submissions_collection.insert_one(submission_data)
         except Exception as e:
             print("❌ MongoDB Insert Error:", e)
@@ -617,7 +614,8 @@ class StudentSubmitAssignmentView(APIView):
 
         return Response({
             "message": "Assignment submitted successfully",
-            "file_url": file_url
+            "viewable_url": viewable_url,
+            "download_url": download_url
         }, status=status.HTTP_201_CREATED)
 
 #videos
