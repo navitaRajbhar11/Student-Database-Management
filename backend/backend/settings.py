@@ -14,18 +14,16 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 import os
-from dotenv import load_dotenv
-
-load_dotenv()  # Load .env file
-
-CLOUDINARY_URL = os.getenv("CLOUDINARY_URL")
-
+from pathlib import Path
 import cloudinary
 
-cloudinary.config(
-    cloudinary_url=CLOUDINARY_URL
-)
+BASE_DIR = Path(__file__).resolve().parent.parent
 
+cloudinary.config(
+    cloud_name = "djmmydlpu",
+    api_key = "612359733263433",
+    api_secret = "gonsN_60NcN1jt6zabTUOZcSrjQ"
+)
 
 
 # Quick-start development settings - unsuitable for production
