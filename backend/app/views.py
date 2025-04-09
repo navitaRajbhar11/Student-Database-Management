@@ -542,7 +542,7 @@ class StudentListAssignmentsView(APIView):
 
 class StudentSubmitAssignmentView(APIView):
     parser_classes = (MultiPartParser, FormParser)
-
+    
     def post(self, request):
         print("🔥 Received POST request for assignment submission")
 
