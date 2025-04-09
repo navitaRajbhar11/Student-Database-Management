@@ -234,7 +234,8 @@ class AdminListAssignmentView(APIView):
 
 #-----Submission-------
 # 🌐 Deployed base URL
-BASE_URL = "https://student-backend-8oa3.onrender.com"
+
+BASE_URL = "https://student-backend-8oa3.onrender.com"  # Replace with your actual backend base URL
 
 class ListSubmissionsView(APIView):
     def get(self, request):
@@ -254,7 +255,7 @@ class ListSubmissionsView(APIView):
 
             raw_file_url = submission.get("file_url", "")
 
-            # 🔗 Ensure file_url is full (especially for local files served via MEDIA)
+            # Ensure file_url is full (especially for local files served via MEDIA)
             full_file_url = (
                 urljoin(BASE_URL, raw_file_url) if not raw_file_url.startswith("http") else raw_file_url
             )
@@ -265,11 +266,14 @@ class ListSubmissionsView(APIView):
                 "class": submission.get("class", ""),
                 "assignment_title": submission.get("assignment_title", ""),
                 "filename": submission.get("filename", ""),
-                "file_url": full_file_url,
+                "file_url": full_file_url,  # Optional if needed elsewhere
+                "viewable_url": full_file_url,  # 👁️ For frontend view link
+                "download_url": full_file_url,  # ⬇️ For frontend download link
                 "content_type": submission.get("content_type", ""),
                 "submitted_at": submitted_at,
                 "status": submission.get("status", "Pending")
             }
+
             formatted_submissions.append(formatted)
 
         return Response(formatted_submissions, status=status.HTTP_200_OK)
