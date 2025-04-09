@@ -11,24 +11,22 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
-import os
-from dotenv import load_dotenv
-import cloudinary
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load .env file
-load_dotenv()
+import os
+from dotenv import load_dotenv
 
-# Cloudinary config
+load_dotenv()  # Load .env file
+
+CLOUDINARY_URL = os.getenv("CLOUDINARY_URL")
+
+import cloudinary
+
 cloudinary.config(
-    cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME"),
-    api_key = os.getenv("CLOUDINARY_API_KEY"),
-    api_secret = os.getenv("CLOUDINARY_API_SECRET"),
-    secure = True
+    cloudinary_url=CLOUDINARY_URL
 )
 
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
