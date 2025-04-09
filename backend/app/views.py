@@ -589,12 +589,10 @@ class StudentSubmitAssignmentView(APIView):
                 resource_type="auto"
             )
             viewable_url = upload_result.get("secure_url")
-
-            # Optional: Create a download version
             download_url = viewable_url.replace("/upload/", "/upload/fl_attachment/")
-
             print("✅ Uploaded to Cloudinary.")
             print("🔗 Viewable URL:", viewable_url)
+            print("⬇️ Download URL:", download_url)
         except Exception as e:
             print("❌ Cloudinary Upload Error:", e)
             return Response({"error": "Failed to upload to Cloudinary."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -608,7 +606,9 @@ class StudentSubmitAssignmentView(APIView):
                 "assignment_title": assignment_title,
                 "due_date": due_date,
                 "filename": file.name,
-                "file_url": viewable_url,
+                "file_url": viewable_url,         # optional legacy
+                "viewable_url": viewable_url,     # for preview
+                "download_url": download_url,     # for download
                 "content_type": file.content_type,
                 "submitted_at": datetime.datetime.utcnow().isoformat(),
                 "status": "Pending"
@@ -624,6 +624,7 @@ class StudentSubmitAssignmentView(APIView):
             "viewable_url": viewable_url,
             "download_url": download_url
         }, status=status.HTTP_201_CREATED)
+
 
 #videos
 
