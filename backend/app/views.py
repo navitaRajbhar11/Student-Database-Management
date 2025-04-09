@@ -234,10 +234,12 @@ class AdminListAssignmentView(APIView):
 class ListSubmissionsView(APIView):
     def get(self, request):
         class_grade = request.query_params.get("class_grade")
-        submissions = get_submissions_collection()
+        submissions_collection = get_submissions_collection()
 
-        query = {} if not class_grade else {"class": str(class_grade)}
-        submission_list = list(submissions.find(query))
+        query = {"class": str(class_grade)} if class_grade else {}
+
+        # Sort by submitted_at descending (latest first)
+        submission_list = list(submissions_collection.find(query).sort("submitted_at", -1))
 
         formatted_submissions = []
         for submission in submission_list:
@@ -246,13 +248,13 @@ class ListSubmissionsView(APIView):
                 submitted_at = submitted_at.isoformat()
 
             formatted = {
-                "_id": str(submission["_id"]),
-                "student_name": submission.get("student_name"),
-                "class": submission.get("class"),
-                "assignment_title": submission.get("assignment_title"),
-                "filename": submission.get("filename"),
-                "file_url": submission.get("file_url"),  # ✅ Now included
-                "content_type": submission.get("content_type"),
+                "_id": str(submission.get("_id", "")),
+                "student_name": submission.get("student_name", ""),
+                "class": submission.get("class", ""),
+                "assignment_title": submission.get("assignment_title", ""),
+                "filename": submission.get("filename", ""),
+                "file_url": submission.get("file_url", ""),  # safe access
+                "content_type": submission.get("content_type", ""),
                 "submitted_at": submitted_at,
                 "status": submission.get("status", "Pending")
             }
@@ -520,6 +522,7 @@ class StudentListAssignmentsView(APIView):
 
         return Response(assignment_list, status=status.HTTP_200_OK)
 
+
 class StudentSubmitAssignmentView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
@@ -575,11 +578,17 @@ class StudentSubmitAssignmentView(APIView):
                 file,
                 folder="assignments",
                 public_id=unique_filename,
-                resource_type="raw"  # ← FIXED: Required for PDFs and DOCX
+                resource_type="raw"  # For non-image files like PDFs/DOCX
             )
 
-            file_url = uploaded["secure_url"]
             cloudinary_id = uploaded["public_id"]
+
+            # 🔽 Force download with original filename
+            file_url = uploaded["secure_url"].replace(
+                "/upload/",
+                f"/upload/fl_attachment:{file.name}/"
+            )
+
             print("✅ Upload success. File URL:", file_url)
         except Exception as e:
             print("❌ Cloudinary Upload Error:", e)
