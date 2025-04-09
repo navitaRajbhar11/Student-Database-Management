@@ -233,6 +233,14 @@ class AdminListAssignmentView(APIView):
         return Response(assignment_list, status=status.HTTP_200_OK)
 
 #-----Submission-------
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from urllib.parse import urljoin
+import datetime
+
+from .mongodb import get_submissions_collection  # Update path if needed
+
 BASE_URL = "https://student-backend-8oa3.onrender.com"  # Used only for local files, not Cloudinary
 
 
@@ -542,7 +550,7 @@ class StudentListAssignmentsView(APIView):
 
 class StudentSubmitAssignmentView(APIView):
     parser_classes = (MultiPartParser, FormParser)
-    
+
     def post(self, request):
         print("🔥 Received POST request for assignment submission")
 
@@ -577,11 +585,25 @@ class StudentSubmitAssignmentView(APIView):
         # Upload to Cloudinary
         try:
             print("🚀 Uploading file to Cloudinary...")
-            upload_result = cloudinary.uploader.upload(file, resource_type="raw")
+            upload_result = cloudinary.uploader.upload(
+                file,
+                folder="assignments",
+                use_filename=True,
+                unique_filename=False,
+                resource_type="auto"  # Let Cloudinary handle file type
+            )
             viewable_url = upload_result.get("secure_url")
-            download_url = viewable_url
+
+            # Create download URL (forces download)
+            public_id = upload_result.get("public_id")
+            file_format = upload_result.get("format")
+            cloud_name = upload_result.get("url").split("/")[3]  # auto-extract
+            download_url = f"https://res.cloudinary.com/{cloud_name}/raw/upload/fl_attachment/{public_id}.{file_format}"
+
             print("✅ Uploaded to Cloudinary.")
-            print("🔗 File URL:", viewable_url)
+            print("🔗 Viewable URL:", viewable_url)
+            print("📥 Download URL:", download_url)
+
         except Exception as e:
             print("❌ Cloudinary Upload Error:", e)
             return Response({"error": "Failed to upload to Cloudinary."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -596,6 +618,7 @@ class StudentSubmitAssignmentView(APIView):
                 "due_date": due_date,
                 "filename": file.name,
                 "file_url": viewable_url,
+                "download_url": download_url,
                 "content_type": file.content_type,
                 "submitted_at": datetime.datetime.utcnow().isoformat(),
                 "status": "Pending"
