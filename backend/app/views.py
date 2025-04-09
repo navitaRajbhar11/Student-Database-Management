@@ -520,7 +520,6 @@ class StudentListAssignmentsView(APIView):
 
         return Response(assignment_list, status=status.HTTP_200_OK)
 
-
 class StudentSubmitAssignmentView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
@@ -576,8 +575,9 @@ class StudentSubmitAssignmentView(APIView):
                 file,
                 folder="assignments",
                 public_id=unique_filename,
-                resource_type="raw"
+                resource_type="raw"  # ← FIXED: Required for PDFs and DOCX
             )
+
             file_url = uploaded["secure_url"]
             cloudinary_id = uploaded["public_id"]
             print("✅ Upload success. File URL:", file_url)
