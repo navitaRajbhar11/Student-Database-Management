@@ -1,4 +1,4 @@
-from rest_framework.views import APIView
+from rest_framework.views import APIView, View
 from rest_framework.response import Response
 from django.http import JsonResponse, HttpResponseBadRequest
 from bson import ObjectId
