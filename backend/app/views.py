@@ -9,16 +9,12 @@ from rest_framework import status
 from bson.objectid import ObjectId
 from bson.errors import InvalidId
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.core.files.base import ContentFile
-from django.core.files.storage import default_storage
 import cloudinary.uploader  # make sure cloudinary is installed and configured
 import os
-import uuid
 from django.conf import settings
 from django.views import View
 from bson import Binary
 from urllib.parse import urljoin
-import bcrypt
 import datetime
 import json
 from .db import (
