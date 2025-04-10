@@ -255,8 +255,6 @@ class AdminListVideosLecturesView(APIView):
 
 # -----Schedule-----
 
-
-# Create a schedule (POST)
 class CreateScheduleView(APIView):
     def post(self, request):
         schedules = get_schedules_collection()
@@ -283,7 +281,7 @@ class CreateScheduleView(APIView):
             # Return success response
             return JsonResponse(schedule_data, status=201)
 
-        except PyMongoError as e:
+        except Exception as e:  # Catch any general exception
             return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
 
 # List schedules (GET)
@@ -301,9 +299,9 @@ class ListSchedulesView(APIView):
             for schedule in schedule_list:
                 schedule["_id"] = str(schedule["_id"])
 
-            return Response(schedule_list, status=status.HTTP_200_OK)
+            return Response(schedule_list, status=200)
 
-        except PyMongoError as e:
+        except Exception as e:  # Catch any general exception
             return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
 
 # Admin delete schedule (DELETE)
@@ -324,7 +322,7 @@ class AdminDeleteScheduleView(APIView):
             else:
                 return JsonResponse({"message": "❌ Schedule not found."}, status=404)
 
-        except PyMongoError as e:
+        except Exception as e:  # Catch any general exception
             return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
         except Exception as e:
             return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
