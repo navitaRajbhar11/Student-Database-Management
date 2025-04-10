@@ -1,5 +1,4 @@
 from pymongo import MongoClient
-from pymongo.errors import ConnectionError, OperationFailure
 import redis
 import json
 
@@ -21,11 +20,8 @@ def connect_to_mongo():
             client = MongoClient(MONGO_URI)
             db = client["studentApp"]
             print("MongoDB Connected Successfully")
-        except ConnectionError as e:
+        except Exception as e:  # Catch any general exception
             print(f"Failed to connect to MongoDB: {e}")
-            exit(1)
-        except OperationFailure as e:
-            print(f"MongoDB Operation Failed: {e}")
             exit(1)
     return db
 
@@ -89,7 +85,7 @@ def fetch_and_print_students():
 
             for student in students:
                 print(student)  # Print each student record
-        except Exception as e:
+        except Exception as e:  # Catch any general exception
             print(f"Error fetching student data: {e}")
 
 # Main execution block
