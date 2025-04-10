@@ -8,6 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from bson.errors import InvalidId
 from rest_framework.parsers import MultiPartParser, FormParser
 import cloudinary.uploader
+from pymongo.errors import PyMongoError
 import datetime
 import json
 from .db import (
@@ -254,13 +255,79 @@ class AdminListVideosLecturesView(APIView):
 
 # -----Schedule-----
 
+
+# Create a schedule (POST)
 class CreateScheduleView(APIView):
     def post(self, request):
         schedules = get_schedules_collection()
+
+        # Collecting data from the request body
         schedule_data = {
             "class_grade": request.data.get("class_grade"),
-            "subject": request.data.get("subject
+            "subject": request.data.get("subject"),
+            "day": request.data.get("day"),
+            "start_time": request.data.get("start_time"),
+            "end_time": request.data.get("end_time"),
+        }
 
+        # Input validation
+        missing_fields = [field for field, value in schedule_data.items() if not value]
+        if missing_fields:
+            return JsonResponse({"error": f"Missing fields: {', '.join(missing_fields)}"}, status=400)
+
+        try:
+            # Insert schedule into MongoDB
+            inserted_schedule = schedules.insert_one(schedule_data)
+            schedule_data["_id"] = str(inserted_schedule.inserted_id)  # Convert ObjectId to string
+
+            # Return success response
+            return JsonResponse(schedule_data, status=201)
+
+        except PyMongoError as e:
+            return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
+
+# List schedules (GET)
+class ListSchedulesView(APIView):
+    def get(self, request):
+        class_grade = request.query_params.get('class_grade')
+        schedules = get_schedules_collection()
+
+        query = {} if not class_grade else {'class_grade': int(class_grade)}
+        try:
+            # Fetch the list of schedules from MongoDB
+            schedule_list = list(schedules.find(query))
+
+            # Convert _id to string for each schedule
+            for schedule in schedule_list:
+                schedule["_id"] = str(schedule["_id"])
+
+            return Response(schedule_list, status=status.HTTP_200_OK)
+
+        except PyMongoError as e:
+            return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
+
+# Admin delete schedule (DELETE)
+class AdminDeleteScheduleView(APIView):
+    def delete(self, request, schedule_id):
+        try:
+            # Validate ObjectId format
+            if not ObjectId.is_valid(schedule_id):
+                return HttpResponseBadRequest("❌ Invalid schedule ID format.")
+
+            schedules = get_schedules_collection()
+
+            # Attempt to delete the schedule by ID
+            result = schedules.delete_one({"_id": ObjectId(schedule_id)})
+
+            if result.deleted_count > 0:
+                return JsonResponse({"message": f"✅ Schedule with ID {schedule_id} deleted successfully."}, status=200)
+            else:
+                return JsonResponse({"message": "❌ Schedule not found."}, status=404)
+
+        except PyMongoError as e:
+            return JsonResponse({"error": f"Database error: {str(e)}"}, status=500)
+        except Exception as e:
+            return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
 
 
 
