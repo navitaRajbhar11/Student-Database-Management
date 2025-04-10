@@ -336,8 +336,10 @@ class AdminCreateVideoLectureView(APIView):
             class_grade = request.data.get('class_grade')
             video_url = request.data.get('video_url')
             description = request.data.get('description', '')
-            pdf_url = request.data.get('pdf_url', '')  # ✅ NEW PDF Field
+            pdf_url = request.data.get('pdf_url', '')
+            subject = request.data.get('subject', '')
 
+            # Validation
             if not title or not class_grade or not video_url:
                 return Response({"error": "Missing required fields"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -345,39 +347,35 @@ class AdminCreateVideoLectureView(APIView):
             if class_grade < 1 or class_grade > 10:
                 return Response({"error": "Class grade must be between 1 and 10"}, status=status.HTTP_400_BAD_REQUEST)
 
-            videos_lectures = get_videos_lectures_collection()
-            video_lecture = {
+            video_data = {
                 'title': title,
                 'class_grade': class_grade,
                 'video_url': video_url,
                 'description': description,
-                'pdf_url': pdf_url,  # ✅ Store PDF URL
-                'created_at': datetime.datetime.now().isoformat()
+                'pdf_url': pdf_url,
+                'subject': subject,
+                'created_at': datetime.datetime.now().isoformat(),
             }
 
-            result = videos_lectures.insert_one(video_lecture)
+            videos_lectures = get_videos_lectures_collection()
+            result = videos_lectures.insert_one(video_data)
 
             print("✅ Inserted Video ID:", result.inserted_id)
-            video_lecture['id'] = str(result.inserted_id)
-            del video_lecture['_id']
-
-            return JsonResponse({"message": "Video Lecture Created Successfully!", "video": video_lecture}, status=201)
+            video_data['id'] = str(result.inserted_id)
+            return JsonResponse({"message": "Video Lecture Created Successfully!", "video": video_data}, status=201)
 
         except Exception as e:
             print("❌ Error in AdminCreateVideoLectureView:", str(e))
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class AdminDeleteVideo(APIView):
     def delete(self, request, video_id):
         try:
-            # Check if the ID is valid (ObjectId format)
             if not ObjectId.is_valid(video_id):
                 return HttpResponseBadRequest("❌ Invalid video ID format.")
 
-            # Access the video collection
             video_collection = get_videos_lectures_collection()
-
-            # Attempt to delete the video from MongoDB
             result = video_collection.delete_one({"_id": ObjectId(video_id)})
 
             if result.deleted_count > 0:
@@ -388,18 +386,60 @@ class AdminDeleteVideo(APIView):
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
 
+
 class AdminListVideosLecturesView(APIView):
     def get(self, request):
-        class_grade = request.query_params.get('class_grade')
-        videos_lectures = get_videos_lectures_collection()
-        query = {'class_grade': int(class_grade)} if class_grade else {}
-        video_list = list(videos_lectures.find(query))
+        try:
+            videos_lectures = get_videos_lectures_collection()
 
-        for video in video_list:
-            video['id'] = str(video['_id'])
-            del video['_id']
+            class_grade = request.query_params.get('class_grade')
+            subject = request.query_params.get('subject')
+            page = int(request.query_params.get('page', 1))
+            page_size = int(request.query_params.get('page_size', 10))
 
-        return Response(video_list)
+            if page <= 0 or page_size <= 0:
+                return Response(
+                    {"error": "Page and page_size must be positive integers."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            query = {}
+            if class_grade:
+                query['class_grade'] = int(class_grade)
+            if subject:
+                query['subject'] = subject
+
+            total_count = videos_lectures.count_documents(query)
+            skip = (page - 1) * page_size
+
+            cursor = videos_lectures.find(query).skip(skip).limit(page_size)
+
+            video_list = []
+            for video in cursor:
+                video_list.append({
+                    "id": str(video.get("_id")),
+                    "title": video.get("title", ""),
+                    "video_url": video.get("video_url", ""),
+                    "pdf_url": video.get("pdf_url", ""),
+                    "description": video.get("description", ""),
+                    "class_grade": video.get("class_grade", ""),
+                    "subject": video.get("subject", ""),
+                    "created_at": video.get("created_at", ""),
+                })
+
+            return Response({
+                "videos": video_list,
+                "pagination": {
+                    "total": total_count,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": (total_count + page_size - 1) // page_size
+                }
+            })
+
+        except Exception as e:
+            print("❌ Error in AdminListVideosLecturesView:", str(e))
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 #------Schedule---
 class CreateScheduleView(APIView):
@@ -625,22 +665,66 @@ class StudentSubmitAssignmentView(APIView):
             "download_url": download_url
         }, status=status.HTTP_201_CREATED)
 
-
 #videos
-
 class StudentListVideosLecturesView(APIView):
     def get(self, request):
-        class_grade = request.query_params.get('class_grade')
         videos_lectures = get_videos_lectures_collection()
 
-        query = {'class_grade': int(class_grade)} if class_grade else {}
-        video_list = list(videos_lectures.find(query))
+        try:
+            # Get filters
+            class_grade = request.query_params.get("class_grade")
+            subject = request.query_params.get("subject")
+            page = int(request.query_params.get("page", 1))
+            page_size = int(request.query_params.get("page_size", 10))
 
-        for video in video_list:
-            video['id'] = str(video['_id'])   # ✅ Convert ObjectId to string
-            video.pop('_id', None)            # ✅ Remove _id from response
+            # Validate page & size
+            if page <= 0 or page_size <= 0:
+                return Response(
+                    {"error": "Page and page_size must be positive integers."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        return Response(video_list)
+            # Build query
+            query = {}
+            if class_grade:
+                query["class_grade"] = int(class_grade)
+            if subject:
+                query["subject"] = subject
+
+            # Pagination logic
+            total_count = videos_lectures.count_documents(query)
+            skip = (page - 1) * page_size
+
+            cursor = videos_lectures.find(query).skip(skip).limit(page_size)
+
+            # Format results
+            video_list = []
+            for video in cursor:
+                video_list.append({
+                    "id": str(video.get("_id", "")),
+                    "title": video.get("title", ""),
+                    "video_url": video.get("video_url", ""),
+                    "pdf_url": video.get("pdf_url", ""),
+                    "description": video.get("description", ""),
+                    "class_grade": video.get("class_grade", ""),
+                    "subject": video.get("subject", ""),
+                })
+
+            return Response({
+                "videos": video_list,
+                "pagination": {
+                    "total": total_count,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": (total_count + page_size - 1) // page_size
+                }
+            }, status=status.HTTP_200_OK)
+
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Invalid query parameters."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class StudentQueryView(APIView):
