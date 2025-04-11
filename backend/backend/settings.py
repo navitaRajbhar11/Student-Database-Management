@@ -15,10 +15,7 @@ import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ✅ This correctly finds the credentials.json in root folder
-GOOGLE_DRIVE_CREDENTIALS_FILE = os.getenv(
-    "GOOGLE_DRIVE_CREDENTIALS_FILE",
-    str(BASE_DIR / "credentials.json")
-)
+GOOGLE_DRIVE_CREDENTIALS_FILE = '/etc/secrets/credentials.json'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
