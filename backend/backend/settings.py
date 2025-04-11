@@ -14,17 +14,9 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 import os
-from pathlib import Path
-import cloudinary
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-cloudinary.config(
-    cloud_name = "djmmydlpu",
-    api_key = "612359733263433",
-    api_secret = "gonsN_60NcN1jt6zabTUOZcSrjQ"
-)
-
+# Add this line at the bottom or anywhere appropriate
+GOOGLE_SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, 'credentials.json')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -180,3 +172,5 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
