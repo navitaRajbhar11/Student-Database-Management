@@ -16,7 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 import os
 
 # Add this line at the bottom or anywhere appropriate
-GOOGLE_SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, 'credentials.json')
+GOOGLE_DRIVE_CREDENTIALS_FILE = '/etc/secrets/credentials.json'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
