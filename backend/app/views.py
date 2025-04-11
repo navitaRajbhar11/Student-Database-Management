@@ -7,10 +7,11 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from bson.objectid import ObjectId
-from bson.errors import InvalidId
 from rest_framework.parsers import MultiPartParser, FormParser
-import cloudinary.uploader  # make sure cloudinary is installed and configured
-import os
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+from google.oauth2 import service_account
+import io, os, datetime
 from django.conf import settings
 from django.views import View
 from bson import Binary
@@ -537,89 +538,100 @@ class StudentListAssignmentsView(APIView):
         return Response(assignment_list, status=status.HTTP_200_OK)
 
 
+
 class StudentSubmitAssignmentView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request):
-        print("🔥 Received POST request for assignment submission")
-
         student_name = request.data.get("student_name")
         student_class = request.data.get("class")
         assignment_title = request.data.get("assignment_title")
         due_date = request.data.get("due_date")
         file = request.FILES.get("file")
 
-        print(f"✅ student_name: {student_name}")
-        print(f"✅ student_class: {student_class}")
-        print(f"✅ assignment_title: {assignment_title}")
-        print(f"✅ due_date: {due_date}")
-        print(f"✅ file: {file}")
-
+        # ✅ Validation
         if not all([student_name, student_class, assignment_title, due_date, file]):
-            return Response({"error": "All fields are required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "All fields are required"}, status=400)
 
-        # Validate file extension
         allowed_extensions = ["pdf", "docx"]
         file_extension = file.name.split(".")[-1].lower()
         if file_extension not in allowed_extensions:
-            return Response({"error": "Only PDF and DOCX files are allowed."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Only PDF and DOCX files allowed"}, status=400)
 
-        # Validate file size (max 10 MB)
         if file.size > 10 * 1024 * 1024:
-            return Response({"error": "File too large. Max size is 10MB."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "File too large. Max size is 10MB"}, status=400)
 
-        # Validate due_date format
         try:
             datetime.datetime.strptime(due_date, "%Y-%m-%d")
         except ValueError:
-            return Response({"error": "Invalid due_date format. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Invalid due_date format. Use YYYY-MM-DD."}, status=400)
 
-        # Upload to Cloudinary
+        # ✅ Google Drive Setup
+        SCOPES = ['https://www.googleapis.com/auth/drive']
+        SERVICE_ACCOUNT_FILE = settings.GOOGLE_DRIVE_CREDENTIALS_FILE
+
+        credentials = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE, scopes=SCOPES
+        )
+        drive_service = build('drive', 'v3', credentials=credentials)
+
+        def get_or_create_folder(folder_name):
+            """Create folder in Drive or return existing one"""
+            query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            result = drive_service.files().list(q=query).execute()
+            files = result.get('files', [])
+            if files:
+                return files[0]['id']
+            else:
+                metadata = {'name': folder_name, 'mimeType': 'application/vnd.google-apps.folder'}
+                folder = drive_service.files().create(body=metadata, fields='id').execute()
+                return folder.get('id')
+
         try:
-            print("🚀 Uploading file to Cloudinary...")
-            upload_result = cloudinary.uploader.upload(
-                file,
-                folder="assignments",
-                use_filename=True,
-                unique_filename=False,
-                resource_type="auto"
-            )
-            viewable_url = upload_result.get("secure_url")
-            download_url = viewable_url.replace("/upload/", "/upload/fl_attachment/")
-            print("✅ Uploaded to Cloudinary.")
-            print("🔗 Viewable URL:", viewable_url)
-            print("⬇️ Download URL:", download_url)
+            class_folder = get_or_create_folder(f"Class {student_class}")
+
+            file_stream = io.BytesIO(file.read())
+            media = MediaIoBaseUpload(file_stream, mimetype=file.content_type, resumable=True)
+            metadata = {'name': file.name, 'parents': [class_folder]}
+
+            uploaded_file = drive_service.files().create(
+                body=metadata, media_body=media,
+                fields='id,webViewLink,webContentLink'
+            ).execute()
+
+            viewable_url = uploaded_file.get('webViewLink')
+            download_url = uploaded_file.get('webContentLink')
+
         except Exception as e:
-            print("❌ Cloudinary Upload Error:", e)
-            return Response({"error": "Failed to upload to Cloudinary."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            print("❌ Google Drive Upload Error:", e)
+            return Response({"error": "Failed to upload to Google Drive"}, status=500)
 
-        # Save metadata to MongoDB
+        # ✅ Save to MongoDB
         try:
-            submissions_collection = get_submissions_collection()
-            submission_data = {
+            submissions = get_submissions_collection()
+            submissions.insert_one({
                 "student_name": student_name,
                 "class": student_class,
                 "assignment_title": assignment_title,
                 "due_date": due_date,
                 "filename": file.name,
-                "file_url": viewable_url,         # optional legacy
-                "viewable_url": viewable_url,     # for preview
-                "download_url": download_url,     # for download
+                "file_url": viewable_url,
+                "viewable_url": viewable_url,
+                "download_url": download_url,
                 "content_type": file.content_type,
                 "submitted_at": datetime.datetime.utcnow().isoformat(),
                 "status": "Pending"
-            }
-            submissions_collection.insert_one(submission_data)
-            print("📝 Submission saved to MongoDB.")
+            })
         except Exception as e:
             print("❌ MongoDB Insert Error:", e)
-            return Response({"error": "Failed to save submission."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": "Failed to save submission"}, status=500)
 
         return Response({
             "message": "Assignment submitted successfully",
             "viewable_url": viewable_url,
             "download_url": download_url
-        }, status=status.HTTP_201_CREATED)
+        }, status=201)
+
 
 
 #videos
