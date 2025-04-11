@@ -538,7 +538,6 @@ class StudentListAssignmentsView(APIView):
         return Response(assignment_list, status=status.HTTP_200_OK)
 
 
-
 class StudentSubmitAssignmentView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
@@ -558,8 +557,8 @@ class StudentSubmitAssignmentView(APIView):
         if file_extension not in allowed_extensions:
             return Response({"error": "Only PDF and DOCX files allowed"}, status=400)
 
-        if file.size > 10 * 1024 * 1024:
-            return Response({"error": "File too large. Max size is 10MB"}, status=400)
+        if file.size > 1 * 1024 * 1024:  # 1MB limit
+            return Response({"error": "File too large. Max size is 1MB"}, status=400)
 
         try:
             datetime.datetime.strptime(due_date, "%Y-%m-%d")
@@ -575,20 +574,31 @@ class StudentSubmitAssignmentView(APIView):
         )
         drive_service = build('drive', 'v3', credentials=credentials)
 
-        def get_or_create_folder(folder_name):
-            """Create folder in Drive or return existing one"""
-            query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        # Parent folder (your "Submission" folder)
+        PARENT_FOLDER_ID = "1WAPvWKDfCMLk8reA3qQbROQA5Nlw5FgI"
+
+        def get_or_create_folder(folder_name, parent_id):
+            """Create folder inside Submission or return existing one"""
+            query = (
+                f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' "
+                f"and '{parent_id}' in parents and trashed=false"
+            )
             result = drive_service.files().list(q=query).execute()
             files = result.get('files', [])
             if files:
                 return files[0]['id']
             else:
-                metadata = {'name': folder_name, 'mimeType': 'application/vnd.google-apps.folder'}
+                metadata = {
+                    'name': folder_name,
+                    'mimeType': 'application/vnd.google-apps.folder',
+                    'parents': [parent_id]
+                }
                 folder = drive_service.files().create(body=metadata, fields='id').execute()
                 return folder.get('id')
 
         try:
-            class_folder = get_or_create_folder(f"Class {student_class}")
+            # 🔥 Class folder inside "Submission"
+            class_folder = get_or_create_folder(f"Class {student_class}", PARENT_FOLDER_ID)
 
             file_stream = io.BytesIO(file.read())
             media = MediaIoBaseUpload(file_stream, mimetype=file.content_type, resumable=True)
@@ -631,7 +641,6 @@ class StudentSubmitAssignmentView(APIView):
             "viewable_url": viewable_url,
             "download_url": download_url
         }, status=201)
-
 
 
 #videos
