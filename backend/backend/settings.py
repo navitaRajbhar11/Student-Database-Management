@@ -9,14 +9,16 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-
 from pathlib import Path
-BASE_DIR = Path(__file__).resolve().parent.parent
-
 import os
 
-# Add this line at the bottom or anywhere appropriate
-GOOGLE_DRIVE_CREDENTIALS_FILE = '/etc/secrets/credentials.json'
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# ✅ This correctly finds the credentials.json in root folder
+GOOGLE_DRIVE_CREDENTIALS_FILE = os.getenv(
+    "GOOGLE_DRIVE_CREDENTIALS_FILE",
+    str(BASE_DIR / "credentials.json")
+)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -43,8 +45,6 @@ INSTALLED_APPS = [
     'corsheaders',
     "django.contrib.sites",
     'app',
-    'cloudinary',
-    'cloudinary_storage',
 ]
 
 
@@ -171,6 +171,3 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
