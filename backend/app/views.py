@@ -459,6 +459,31 @@ class AdminListVideosLecturesView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=500)
 
+@method_decorator(csrf_exempt, name='dispatch')
+class AdminDeleteChapterView(View):
+    def delete(self, request, *args, **kwargs):
+        try:
+            data = json.loads(request.body)
+            class_grade = int(data.get("class_grade"))
+            subject = data.get("subject")
+            chapter_name = data.get("chapter")
+
+            collection = get_video_lectures_collection()
+
+            # Pull the chapter from the chapters array
+            result = collection.update_one(
+                {"class_grade": class_grade, "subject": subject},
+                {"$pull": {"chapters": {"name": chapter_name}}}
+            )
+
+            if result.modified_count == 0:
+                return JsonResponse({"error": "Chapter not found or already deleted"}, status=404)
+
+            return JsonResponse({"message": "Chapter deleted successfully"}, status=200)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
 #------Schedule---
 class CreateScheduleView(APIView):
     def post(self, request):
