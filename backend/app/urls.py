@@ -11,7 +11,7 @@ from .views import (
     AdminDeleteVideo,
     AdminCreateVideoLectureView,
     AdminListVideosLecturesView,
-    AdminDeleteChapterView
+    AdminDeleteChapterView,
     AdminUpdateSubmissionView,
     StudentListVideosLecturesView,
     ListStudentsView,
