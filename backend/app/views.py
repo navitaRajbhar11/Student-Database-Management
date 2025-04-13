@@ -328,106 +328,124 @@ class AdminDeleteSubmissionView(APIView):
 class AdminCreateVideoLectureView(APIView):
     def post(self, request):
         try:
-            print("📌 Incoming Data:", request.data)
+            data = request.data
 
-            title = request.data.get('title')
-            class_grade = request.data.get('class_grade')
-            video_url = request.data.get('video_url')
-            subject = request.data.get('subject')
-            chapter = request.data.get('chapter')
-            description = request.data.get('description', '')
-            pdf_url = request.data.get('pdf_url', '')
+            class_grade = int(data.get('class_grade'))
+            subject = data.get('subject')
+            chapter_name = data.get('chapter')
+            video_title = data.get('title')
+            video_url = data.get('video_url')
+            pdf_url = data.get('pdf_url', '')
+            description = data.get('description', '')
 
-            if not all([title, class_grade, video_url, subject, chapter]):
-                return Response({"error": "Missing required fields"}, status=status.HTTP_400_BAD_REQUEST)
-
-            class_grade = int(class_grade)
-            if class_grade < 1 or class_grade > 10:
-                return Response({"error": "Class grade must be between 1 and 10"}, status=status.HTTP_400_BAD_REQUEST)
+            if not all([class_grade, subject, chapter_name, video_title, video_url]):
+                return Response({"error": "Missing required fields"}, status=400)
 
             collection = get_videos_lectures_collection()
 
-            video_doc = {
-                'title': title,
-                'class_grade': class_grade,
-                'subject': subject,
-                'chapter': chapter,
+            existing_doc = collection.find_one({'class_grade': class_grade, 'subject': subject})
+
+            video_data = {
+                'title': video_title,
                 'video_url': video_url,
-                'pdf_url': pdf_url,
                 'description': description,
-                'created_at': datetime.datetime.utcnow()
+                'pdf_url': pdf_url
             }
 
-            result = collection.insert_one(video_doc)
-            video_doc['id'] = str(result.inserted_id)
-            del video_doc['_id']
+            if existing_doc:
+                updated_chapters = existing_doc.get('chapters', [])
+                chapter_found = False
 
-            return JsonResponse({"message": "✅ Video Lecture Created Successfully!", "video": video_doc}, status=201)
+                for chapter in updated_chapters:
+                    if chapter['name'] == chapter_name:
+                        chapter['videos'].append(video_data)
+                        chapter_found = True
+                        break
+
+                if not chapter_found:
+                    updated_chapters.append({
+                        'name': chapter_name,
+                        'videos': [video_data]
+                    })
+
+                collection.update_one(
+                    {'_id': existing_doc['_id']},
+                    {'$set': {'chapters': updated_chapters}}
+                )
+            else:
+                new_doc = {
+                    'class_grade': class_grade,
+                    'subject': subject,
+                    'chapters': [
+                        {'name': chapter_name, 'videos': [video_data]}
+                    ],
+                    'created_at': datetime.datetime.utcnow()
+                }
+                collection.insert_one(new_doc)
+
+            return Response({"message": "✅ Lecture added successfully"}, status=201)
 
         except Exception as e:
-            print("❌ Error:", str(e))
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": str(e)}, status=500)
 
 class AdminDeleteVideo(APIView):
-    def delete(self, request, video_id):
+    def delete(self, request):
         try:
-            if not ObjectId.is_valid(video_id):
-                return HttpResponseBadRequest("❌ Invalid video ID format.")
+            class_grade = int(request.data.get('class_grade'))
+            subject = request.data.get('subject')
+            chapter_name = request.data.get('chapter')
+            video_title = request.data.get('video_title')
 
             collection = get_videos_lectures_collection()
-            result = collection.delete_one({"_id": ObjectId(video_id)})
+            doc = collection.find_one({'class_grade': class_grade, 'subject': subject})
 
-            if result.deleted_count:
-                return JsonResponse({"message": "✅ Video deleted successfully."})
-            else:
-                return JsonResponse({"message": "❌ Video not found."}, status=404)
+            if not doc:
+                return Response({"error": "Subject not found"}, status=404)
+
+            chapters = doc.get('chapters', [])
+
+            for chapter in chapters:
+                if chapter['name'] == chapter_name:
+                    chapter['videos'] = [v for v in chapter.get('videos', []) if v['title'] != video_title]
+
+            collection.update_one(
+                {'_id': doc['_id']},
+                {'$set': {'chapters': chapters}}
+            )
+
+            return Response({"message": "✅ Video deleted successfully"}, status=200)
 
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+            return Response({"error": str(e)}, status=500)
 
 class AdminListVideosLecturesView(APIView):
     def get(self, request):
         try:
-            class_grade = request.query_params.get('class_grade')
+            class_grade = request.query_params.get("class_grade")
+            if not class_grade:
+                return Response({"error": "class_grade is required"}, status=400)
+
             collection = get_videos_lectures_collection()
+            docs = list(collection.find({'class_grade': int(class_grade)}))
 
-            query = {"class_grade": int(class_grade)} if class_grade else {}
-            videos = list(collection.find(query))
+            results = []
 
-            grouped_data = {}
+            for doc in docs:
+                subject_info = {
+                    "subject": doc['subject'],
+                    "chapters": []
+                }
 
-            for video in videos:
-                subject = video.get("subject", "Unknown Subject")
-                chapter = video.get("chapter", "Unknown Chapter")
+                for chapter in doc.get('chapters', []):
+                    chapter_info = {
+                        "name": chapter['name'],
+                        "videos": chapter.get('videos', [])
+                    }
+                    subject_info["chapters"].append(chapter_info)
 
-                if subject not in grouped_data:
-                    grouped_data[subject] = {}
+                results.append(subject_info)
 
-                if chapter not in grouped_data[subject]:
-                    grouped_data[subject][chapter] = []
-
-                grouped_data[subject][chapter].append({
-                    "id": str(video["_id"]),
-                    "title": video["title"],
-                    "video_url": video["video_url"],
-                    "pdf_url": video.get("pdf_url", ""),
-                })
-
-            # Convert to structured list
-            result = []
-            for subject, chapters in grouped_data.items():
-                result.append({
-                    "name": subject,
-                    "chapters": [
-                        {
-                            "name": chapter,
-                            "videos": videos
-                        }
-                        for chapter, videos in chapters.items()
-                    ]
-                })
-
-            return Response(result)
+            return Response(results, status=200)
 
         except Exception as e:
             return Response({"error": str(e)}, status=500)
@@ -676,71 +694,82 @@ class StudentSubmitAssignmentView(APIView):
             "download_url": download_url
         }, status=201)
 
-
-#videos
-
-
 #videos
 class StudentListVideosLecturesView(APIView):
     def get(self, request):
-        class_grade = request.query_params.get('class_grade')
-
-        if not class_grade:
-            return Response({"error": "class_grade parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
-
         try:
-            class_grade = int(class_grade)
-        except ValueError:
-            return Response({"error": "class_grade must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+            collection = get_videos_lectures_collection()
+            videos = list(collection.find())
 
-        collection = get_videos_lectures_collection()
-        video_docs = list(collection.find({'class_grade': class_grade}))
+            if not videos:
+                return Response({"message": "No videos found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if not video_docs:
-            return Response({"message": "No videos found for this class grade"}, status=status.HTTP_404_NOT_FOUND)
+            class_structure = {}
 
-        grouped_result = {}
+            for video in videos:
+                class_grade = video.get("class_grade")
+                subject = video.get("subject", "Unknown Subject")
+                chapter = video.get("chapter", "Unknown Chapter")
 
-        for doc in video_docs:
-            subject = doc.get("subject", "Unknown Subject")
-            chapter = doc.get("chapter", "Unknown Chapter")
+                # Convert ObjectId to string
+                video_id = str(video.get("_id"))
 
-            if subject not in grouped_result:
-                grouped_result[subject] = {}
+                # Initialize class level
+                if class_grade not in class_structure:
+                    class_structure[class_grade] = {}
 
-            if chapter not in grouped_result[subject]:
-                grouped_result[subject][chapter] = []
+                # Initialize subject level
+                if subject not in class_structure[class_grade]:
+                    class_structure[class_grade][subject] = {}
 
-            grouped_result[subject][chapter].append({
-                "title": doc.get("title"),
-                "video_url": doc.get("video_url"),
-                "pdf_url": doc.get("pdf_url", ""),
-                "description": doc.get("description", ""),
-            })
-
-        # Final structured result
-        result = []
-        for subject, chapters in grouped_result.items():
-            result.append({
-                "subject": subject,
-                "class_grade": class_grade,
-                "chapters": [
-                    {
-                        "chapter_name": chapter_name,
-                        "videos": videos,
-                        "pdfs": [
-                            {
-                                "pdf_url": v["pdf_url"],
-                                "pdf_title": f'{v["title"]} Notes'
-                            }
-                            for v in videos if v.get("pdf_url")
-                        ]
+                # Initialize chapter level
+                if chapter not in class_structure[class_grade][subject]:
+                    class_structure[class_grade][subject][chapter] = {
+                        "videos": [],
+                        "pdfs": []
                     }
-                    for chapter_name, videos in chapters.items()
-                ]
-            })
 
-        return Response(result, status=200)
+                # Append video
+                class_structure[class_grade][subject][chapter]["videos"].append({
+                    "id": video_id,
+                    "title": video.get("title"),
+                    "video_url": video.get("video_url"),
+                    "description": video.get("description", "")
+                })
+
+                # Append PDF if available
+                if video.get("pdf_url"):
+                    class_structure[class_grade][subject][chapter]["pdfs"].append({
+                        "pdf_title": f"{video.get('title')} Notes",
+                        "pdf_url": video.get("pdf_url")
+                    })
+
+            # Transform into a clean frontend-friendly format
+            result = []
+            for class_grade, subjects in class_structure.items():
+                result.append({
+                    "class_grade": class_grade,
+                    "subjects": [
+                        {
+                            "subject_name": subject,
+                            "chapters": [
+                                {
+                                    "chapter_name": chapter,
+                                    "videos": data["videos"],
+                                    "pdfs": data["pdfs"]
+                                }
+                                for chapter, data in chapters.items()
+                            ]
+                        }
+                        for subject, chapters in subjects.items()
+                    ]
+                })
+
+            return Response(result, status=200)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class StudentQueryView(APIView):
     def post(self, request):
