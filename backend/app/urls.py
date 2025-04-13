@@ -1,6 +1,4 @@
 from django.urls import path
-from django.conf import settings
-from django.conf.urls.static import static
 from .views import (
     CreateStudentView,
     StudentLoginView,
@@ -13,6 +11,7 @@ from .views import (
     AdminDeleteVideo,
     AdminCreateVideoLectureView,
     AdminListVideosLecturesView,
+    AdminDeleteChapterView
     AdminUpdateSubmissionView,
     StudentListVideosLecturesView,
     ListStudentsView,
@@ -44,6 +43,7 @@ urlpatterns = [
     path('admin/create-video-lecture/', AdminCreateVideoLectureView.as_view(), name='create_video_lecture'),  # AdminVideos.jsx
     path('admin/delete-video/<str:video_id>/', AdminDeleteVideo.as_view(), name='delete_video'),
     path('admin/list-videos-lectures/', AdminListVideosLecturesView.as_view(), name='list_videos_lectures'),  # ListVideos.jsx
+    path('admin/delete-video-lecture/', AdminDeleteChapterView.as_view(), name='delete_video_lecture'),
     path('admin/create-schedule/', CreateScheduleView.as_view(), name='create_schedule'),  # CreateSchedule.jsx
     path("admin/list-schedule/", ListSchedulesView.as_view(), name="list_schedule"),
     path('admin/delete-schedule/<str:schedule_id>/', AdminDeleteScheduleView.as_view(), name='delete_schedule'),
@@ -55,11 +55,7 @@ urlpatterns = [
     path('student/profile/', StudentProfileView.as_view(), name='student-profile'),
     path('student/list-assignments/', StudentListAssignmentsView.as_view(), name='list_assignments'),
     path('student/submit-assignment/', StudentSubmitAssignmentView.as_view(), name='submit_assignment'),
-    path('student/list-videos-lectures/', StudentListVideosLecturesView.as_view(), name='list_videos_lectures'), 
+    path('student/list-videos-lectures/', StudentListVideosLecturesView.as_view(), name='list_videos_lectures'),
     path('student/schedule/', StudentScheduleView.as_view(), name='student_schedule'), 
     path("student/upload-query/", StudentQueryView.as_view(), name="upload_query"),
 ]
-
-# Serve media files in development
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
