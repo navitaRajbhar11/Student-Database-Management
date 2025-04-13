@@ -645,6 +645,8 @@ class StudentSubmitAssignmentView(APIView):
 
 #videos
 
+
+#videos
 class StudentListVideosLecturesView(APIView):
     def get(self, request):
         class_grade = request.query_params.get('class_grade')
@@ -653,12 +655,39 @@ class StudentListVideosLecturesView(APIView):
         query = {'class_grade': int(class_grade)} if class_grade else {}
         video_list = list(videos_lectures.find(query))
 
-        for video in video_list:
-            video['id'] = str(video['_id'])   # ✅ Convert ObjectId to string
-            video.pop('_id', None)            # ✅ Remove _id from response
+        result = []
 
-        return Response(video_list)
+        # Group videos by subject and chapter
+        for doc in video_list:
+            subject_data = {
+                "subject": doc.get("subject"),
+                "class_grade": doc.get("class_grade"),
+                "chapters": []
+            }
 
+            for chapter in doc.get("chapters", []):
+                chapter_data = {
+                    "chapter": chapter.get("name"),
+                    "videos": [],
+                    "folders": []  # Assuming you'll fill this later with actual folder data
+                }
+
+                for video in chapter.get("videos", []):
+                    chapter_data["videos"].append({
+                        "title": video.get("title"),
+                        "video_url": video.get("video_url"),
+                        "pdf_url": video.get("pdf_url"),
+                        "description": video.get("description")
+                    })
+
+                for folder in chapter.get("folders", []):
+                    chapter_data["folders"].append(folder)
+
+                subject_data["chapters"].append(chapter_data)
+
+            result.append(subject_data)
+
+        return Response(result)
 
 class StudentQueryView(APIView):
     def post(self, request):
