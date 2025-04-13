@@ -395,26 +395,23 @@ class AdminDeleteVideo(APIView):
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
 
-class AdminDeleteVideo(APIView):
-    def delete(self, request, video_id):
-        try:
-            # Check if the ID is valid (ObjectId format)
-            if not ObjectId.is_valid(video_id):
-                return HttpResponseBadRequest("❌ Invalid video ID format.")
+class AdminListVideosLecturesView(APIView):
+    def get(self, request):
+        class_grade = request.query_params.get('class_grade')
+        videos_lectures = get_videos_lectures_collection()
 
-            # Access the video collection
-            video_collection = get_videos_lectures_collection()
+        # Query to filter by class grade
+        query = {'class_grade': int(class_grade)} if class_grade else {}
 
-            # Attempt to delete the video from MongoDB
-            result = video_collection.delete_one({"_id": ObjectId(video_id)})
+        # Fetch the list of videos
+        video_list = list(videos_lectures.find(query))
 
-            if result.deleted_count > 0:
-                return JsonResponse({"message": f"✅ Video with ID {video_id} deleted successfully."}, status=200)
-            else:
-                return JsonResponse({"message": "❌ Video not found."}, status=404)
+        # Clean up the MongoDB _id field and add the id field for the response
+        for video in video_list:
+            video['id'] = str(video['_id'])  # Convert Mongo _id to a string
+            del video['_id']  # Remove the _id field as it's not needed in the response
 
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+        return Response(video_list)
 
 #------Schedule---
 class CreateScheduleView(APIView):
