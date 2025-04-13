@@ -324,6 +324,7 @@ class AdminDeleteSubmissionView(APIView):
             return JsonResponse({"error": str(e)}, status=500)
 
 #  --VideosLecture-
+
 class AdminCreateVideoLectureView(APIView):
     def post(self, request):
         try:
@@ -335,28 +336,37 @@ class AdminCreateVideoLectureView(APIView):
             description = request.data.get('description', '')
             pdf_url = request.data.get('pdf_url', '')  # ✅ NEW PDF Field
 
+            # Validate the required fields
             if not title or not class_grade or not video_url:
                 return Response({"error": "Missing required fields"}, status=status.HTTP_400_BAD_REQUEST)
 
+            # Ensure class_grade is a valid number between 1 and 10
             class_grade = int(class_grade)
             if class_grade < 1 or class_grade > 10:
                 return Response({"error": "Class grade must be between 1 and 10"}, status=status.HTTP_400_BAD_REQUEST)
 
+            # Fetch the MongoDB collection
             videos_lectures = get_videos_lectures_collection()
+
+            # Construct the video lecture document
             video_lecture = {
                 'title': title,
                 'class_grade': class_grade,
                 'video_url': video_url,
                 'description': description,
                 'pdf_url': pdf_url,  # ✅ Store PDF URL
-                'created_at': datetime.datetime.now().isoformat()
+                'created_at': datetime.datetime.now().isoformat(),
+                'chapters': [],  # Initially, no chapters
             }
 
+            # Insert the new video lecture into the database
             result = videos_lectures.insert_one(video_lecture)
 
             print("✅ Inserted Video ID:", result.inserted_id)
+
+            # Prepare the response with the inserted video lecture
             video_lecture['id'] = str(result.inserted_id)
-            del video_lecture['_id']
+            del video_lecture['_id']  # Remove MongoDB _id field
 
             return JsonResponse({"message": "Video Lecture Created Successfully!", "video": video_lecture}, status=201)
 
@@ -385,18 +395,26 @@ class AdminDeleteVideo(APIView):
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
 
-class AdminListVideosLecturesView(APIView):
-    def get(self, request):
-        class_grade = request.query_params.get('class_grade')
-        videos_lectures = get_videos_lectures_collection()
-        query = {'class_grade': int(class_grade)} if class_grade else {}
-        video_list = list(videos_lectures.find(query))
+class AdminDeleteVideo(APIView):
+    def delete(self, request, video_id):
+        try:
+            # Check if the ID is valid (ObjectId format)
+            if not ObjectId.is_valid(video_id):
+                return HttpResponseBadRequest("❌ Invalid video ID format.")
 
-        for video in video_list:
-            video['id'] = str(video['_id'])
-            del video['_id']
+            # Access the video collection
+            video_collection = get_videos_lectures_collection()
 
-        return Response(video_list)
+            # Attempt to delete the video from MongoDB
+            result = video_collection.delete_one({"_id": ObjectId(video_id)})
+
+            if result.deleted_count > 0:
+                return JsonResponse({"message": f"✅ Video with ID {video_id} deleted successfully."}, status=200)
+            else:
+                return JsonResponse({"message": "❌ Video not found."}, status=404)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
 
 #------Schedule---
 class CreateScheduleView(APIView):
@@ -650,10 +668,21 @@ class StudentSubmitAssignmentView(APIView):
 class StudentListVideosLecturesView(APIView):
     def get(self, request):
         class_grade = request.query_params.get('class_grade')
-        videos_lectures = get_videos_lectures_collection()
 
-        query = {'class_grade': int(class_grade)} if class_grade else {}
-        video_list = list(videos_lectures.find(query))
+        # If class_grade is not provided, return an error message
+        if not class_grade:
+            return Response({"error": "class_grade parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fetch the videos_lectures collection
+        videos_lectures_collection = get_videos_lectures_collection()
+
+        # MongoDB query to filter documents by class_grade
+        query = {'class_grade': int(class_grade)}
+        video_list = list(videos_lectures_collection.find(query))
+
+        # If no videos found for the given class_grade
+        if not video_list:
+            return Response({"message": "No videos found for this class grade"}, status=status.HTTP_404_NOT_FOUND)
 
         result = []
 
@@ -669,7 +698,7 @@ class StudentListVideosLecturesView(APIView):
                 chapter_data = {
                     "chapter": chapter.get("name"),
                     "videos": [],
-                    "folders": []  # Assuming you'll fill this later with actual folder data
+                    "folders": []  # Add folder data here when ready
                 }
 
                 for video in chapter.get("videos", []):
@@ -680,14 +709,15 @@ class StudentListVideosLecturesView(APIView):
                         "description": video.get("description")
                     })
 
-                for folder in chapter.get("folders", []):
-                    chapter_data["folders"].append(folder)
+                # Here, you can add folder data if you decide to implement that feature
+                # chapter_data["folders"] = ["Folder1", "Folder2"]  # Placeholder for folders
 
                 subject_data["chapters"].append(chapter_data)
 
             result.append(subject_data)
 
         return Response(result)
+
 
 class StudentQueryView(APIView):
     def post(self, request):
