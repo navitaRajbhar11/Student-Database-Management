@@ -388,26 +388,34 @@ class AdminCreateVideoLectureView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=500)
 
+
 class AdminDeleteVideo(APIView):
-    def delete(self, request):
+    def delete(self, request, video_id):
         try:
+            # Extract class_grade, subject, chapter_name, and video_title from the request
             class_grade = int(request.data.get('class_grade'))
             subject = request.data.get('subject')
             chapter_name = request.data.get('chapter')
             video_title = request.data.get('video_title')
 
+            print("Received data:", class_grade, subject, chapter_name, video_title)  # Debugging
+
             collection = get_videos_lectures_collection()
             doc = collection.find_one({'class_grade': class_grade, 'subject': subject})
 
             if not doc:
+                print("Subject not found!")  # Debugging
                 return Response({"error": "Subject not found"}, status=404)
 
             chapters = doc.get('chapters', [])
 
             for chapter in chapters:
                 if chapter['name'] == chapter_name:
+                    print(f"Found chapter: {chapter_name}")  # Debugging
+                    # Remove video based on title
                     chapter['videos'] = [v for v in chapter.get('videos', []) if v['title'] != video_title]
 
+            # Update the collection after deleting the video
             collection.update_one(
                 {'_id': doc['_id']},
                 {'$set': {'chapters': chapters}}
@@ -416,6 +424,7 @@ class AdminDeleteVideo(APIView):
             return Response({"message": "✅ Video deleted successfully"}, status=200)
 
         except Exception as e:
+            print("Error occurred:", e)  # Debugging
             return Response({"error": str(e)}, status=500)
 
 class AdminListVideosLecturesView(APIView):
