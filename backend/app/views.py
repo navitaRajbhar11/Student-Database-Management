@@ -17,6 +17,7 @@ from django.views import View
 from bson import Binary
 from urllib.parse import urljoin
 import datetime
+import uuid
 import json
 from .db import (
     get_students_collection, get_admins_collection, get_assignments_collection,get_submissions_collection,
@@ -325,161 +326,135 @@ class AdminDeleteSubmissionView(APIView):
 
 #  --VideosLecture-
 
-class AdminCreateVideoLectureView(APIView):
+class VideoCreateView(APIView):
     def post(self, request):
-        try:
-            data = request.data
+        data = request.data
+        required_fields = ["class", "subject", "chapter"]
 
-            class_grade = int(data.get('class_grade'))
-            subject = data.get('subject')
-            chapter_name = data.get('chapter')
-            video_title = data.get('title')
-            video_url = data.get('video_url')
-            pdf_url = data.get('pdf_url', '')
-            description = data.get('description', '')
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return Response({"error": f"{field} is required"}, status=400)
 
-            if not all([class_grade, subject, chapter_name, video_title, video_url]):
-                return Response({"error": "Missing required fields"}, status=400)
+        videos = data.get("videos", [])
+        if not videos or not isinstance(videos, list):
+            return Response({"error": "At least one video is required"}, status=400)
 
-            collection = get_videos_lectures_collection()
+        collection = get_videos_lectures_collection()
 
-            existing_doc = collection.find_one({'class_grade': class_grade, 'subject': subject})
+        existing_doc = collection.find_one({
+            "class": data["class"],
+            "subject": data["subject"],
+            "chapter": data["chapter"]
+        })
 
-            video_data = {
-                'title': video_title,
-                'video_url': video_url,
-                'description': description,
-                'pdf_url': pdf_url
-            }
+        for video in videos:
+            if not video.get("video_name") or not video.get("video_url"):
+                return Response({"error": "Each video must have a name and URL"}, status=400)
 
-            if existing_doc:
-                updated_chapters = existing_doc.get('chapters', [])
-                chapter_found = False
+        if existing_doc:
+            # Check for duplicates
+            existing_video_names = [v["video_name"] for v in existing_doc["videos"]]
+            for video in videos:
+                if video["video_name"] in existing_video_names:
+                    return Response({"error": f"Duplicate video name: {video['video_name']}"}, status=400)
 
-                for chapter in updated_chapters:
-                    if chapter['name'] == chapter_name:
-                        chapter['videos'].append(video_data)
-                        chapter_found = True
-                        break
-
-                if not chapter_found:
-                    updated_chapters.append({
-                        'name': chapter_name,
-                        'videos': [video_data]
-                    })
-
-                collection.update_one(
-                    {'_id': existing_doc['_id']},
-                    {'$set': {'chapters': updated_chapters}}
-                )
-            else:
-                new_doc = {
-                    'class_grade': class_grade,
-                    'subject': subject,
-                    'chapters': [
-                        {'name': chapter_name, 'videos': [video_data]}
-                    ],
-                    'created_at': datetime.datetime.utcnow()
-                }
-                collection.insert_one(new_doc)
-
-            return Response({"message": "✅ Lecture added successfully"}, status=201)
-
-        except Exception as e:
-            return Response({"error": str(e)}, status=500)
-
-class AdminDeleteVideo(APIView):
-    def delete(self, request, video_id):
-        try:
-            # Find the video document by video_id (assuming video_id is unique)
-            collection = get_videos_lectures_collection()
-            doc = collection.find_one({'_id': video_id})
-
-            if not doc:
-                return Response({"error": "Video not found"}, status=404)
-
-            # Extract class_grade, subject, chapter_name, and video_title from the request
-            class_grade = int(request.data.get('class_grade'))
-            subject = request.data.get('subject')
-            chapter_name = request.data.get('chapter')
-            video_title = request.data.get('video_title')
-
-            # Delete the video within the right chapter
-            chapters = doc.get('chapters', [])
-            for chapter in chapters:
-                if chapter['name'] == chapter_name:
-                    chapter['videos'] = [v for v in chapter.get('videos', []) if v['title'] != video_title]
-
-            # Update the collection after deleting the video
+            # Push all videos
             collection.update_one(
-                {'_id': doc['_id']},
-                {'$set': {'chapters': chapters}}
+                {"_id": existing_doc["_id"]},
+                {"$push": {"videos": {"$each": videos}}}
             )
+        else:
+            collection.insert_one({
+                "class": data["class"],
+                "subject": data["subject"],
+                "chapter": data["chapter"],
+                "videos": videos,
+                "created_at": datetime.datetime.utcnow()
+            })
 
-            return Response({"message": "✅ Video deleted successfully"}, status=200)
+        return Response({"message": "Videos added successfully"}, status=201)
 
-        except Exception as e:
-            return Response({"error": str(e)}, status=500)
+class VideoDeleteView(APIView):
+    def delete(self, request):
+        data = request.data
+        collection = get_videos_lectures_collection()
 
-class AdminListVideosLecturesView(APIView):
-    def get(self, request):
-        try:
-            class_grade = request.query_params.get("class_grade")
-            if not class_grade:
-                return Response({"error": "class_grade is required"}, status=400)
-
-            collection = get_videos_lectures_collection()
-            docs = list(collection.find({'class_grade': int(class_grade)}))
-
-            if not docs:
-                return Response({"error": "No videos found for the specified class grade"}, status=404)
-
-            results = []
-
-            for doc in docs:
-                subject_info = {
-                    "subject": doc['subject'],
-                    "chapters": []
-                }
-
-                for chapter in doc.get('chapters', []):
-                    chapter_info = {
-                        "name": chapter['name'],
-                        "videos": chapter.get('videos', [])
+        result = collection.update_one(
+            {
+                "class": data["class"],
+                "subject": data["subject"],
+                "chapter": data["chapter"]
+            },
+            {
+                "$pull": {
+                    "videos": {
+                        "video_name": data["video_name"]
                     }
-                    subject_info["chapters"].append(chapter_info)
+                }
+            }
+        )
 
-                results.append(subject_info)
+        if result.modified_count:
+            return Response({"message": "Video deleted"}, status=200)
+        return Response({"error": "Video not found"}, status=404)
 
-            return Response(results, status=200)
+class ChapterDeleteView(APIView):
+    def delete(self, request, class_name, subject, chapter):
+        collection = get_videos_lectures_collection()
+        result = collection.delete_one({
+            "class": class_name,
+            "subject": subject,
+            "chapter": chapter
+        })
 
-        except Exception as e:
-            return Response({"error": str(e)}, status=500)
+        if result.deleted_count:
+            return Response({"message": "Chapter deleted"}, status=200)
+        return Response({"error": "Chapter not found"}, status=404)
 
-@method_decorator(csrf_exempt, name='dispatch')
-class AdminDeleteChapterView(View):
-    def delete(self, request, *args, **kwargs):
-        try:
-            data = json.loads(request.body)
-            class_grade = int(data.get("class_grade"))
-            subject = data.get("subject")
-            chapter_name = data.get("chapter")
+class VideoListView(APIView):
+    def get(self, request):
+        selected_class = request.GET.get("class")
+        if not selected_class:
+            return Response({"error": "Class is required"}, status=400)
 
-            collection = get_video_lectures_collection()
+        # ✅ Call the collection function properly
+        collection = get_videos_lectures_collection()
+        data = list(collection.find({"class": selected_class}))
 
-            # Pull the chapter from the chapters array
-            result = collection.update_one(
-                {"class_grade": class_grade, "subject": subject},
-                {"$pull": {"chapters": {"name": chapter_name}}}
-            )
+        if not data:
+            return Response({"message": "No videos found for this class."}, status=404)
 
-            if result.modified_count == 0:
-                return JsonResponse({"error": "Chapter not found or already deleted"}, status=404)
+        response = {}
+        for doc in data:
+            subject = doc.get("subject")
+            chapter = doc.get("chapter")
+            videos = doc.get("videos", [])
 
-            return JsonResponse({"message": "Chapter deleted successfully"}, status=200)
+            if subject not in response:
+                response[subject] = {}
 
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+            if chapter not in response[subject]:
+                response[subject][chapter] = []
+
+            response[subject][chapter].extend(videos)
+
+        return Response(response, status=200)
+
+class ListSubjectsByClassView(APIView):
+    def get(self, request):
+        class_name = request.query_params.get('class')
+        if not class_name:
+            return Response({'error': 'Class is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fetch the collection
+        collection = get_videos_lectures_collection()
+
+        # Get distinct subjects for the selected class
+        subjects = collection.distinct('subject', {'class': class_name})
+
+        return Response({'subjects': subjects}, status=status.HTTP_200_OK)
+
+
 
 #------Schedule---
 class CreateScheduleView(APIView):
