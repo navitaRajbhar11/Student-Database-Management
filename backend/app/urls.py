@@ -8,10 +8,11 @@ from .views import (
     AdminDeleteAssignmentView,
     StudentListAssignmentsView,
     StudentSubmitAssignmentView,
-    AdminDeleteVideo,
-    AdminCreateVideoLectureView,
-    AdminListVideosLecturesView,
-    AdminDeleteChapterView,
+    VideoCreateView,
+    VideoDeleteView,
+    VideoListView,
+    ListSubjectsByClassView,
+    ChapterDeleteView,
     AdminUpdateSubmissionView,
     StudentListVideosLecturesView,
     ListStudentsView,
@@ -39,11 +40,21 @@ urlpatterns = [
     path('admin/list-assignment/', AdminListAssignmentView.as_view(), name='list_assignment'),  # AssigbmentList.jsx
     path("admin/list-submissions/", ListSubmissionsView.as_view(), name="list_submissions"),  # SListSubmission
     path("admin/update-submission-status/<str:submission_id>/", AdminUpdateSubmissionView.as_view(), name="update_submission_status"),
+   
+    # Create or append video to a chapter
+    path('admin/create-videos/', VideoCreateView.as_view(), name='video-create'),
+
+    # Delete a specific video from a chapter
+    path('admin/videos/delete/', VideoDeleteView.as_view(), name='video-delete'),
+
+    # List all videos for a class grouped by subject > chapter
+    path('admin/list-videos/', VideoListView.as_view(), name='video-list'),
+
+    # Delete an entire chapter
+    path('admin/chapters/<str:class_name>/<str:subject>/<str:chapter>/', ChapterDeleteView.as_view(), name='chapter-delete'),
+    path('admin/subjects/', ListSubjectsByClassView.as_view(), name='list-subjects-by-class'),
+
     path("admin/delete-submission/<str:submission_id>/", AdminDeleteSubmissionView.as_view(), name="delete_submission"),
-    path('admin/create-video-lecture/', AdminCreateVideoLectureView.as_view(), name='create_video_lecture'),  # AdminVideos.jsx
-    path('admin/delete-video/<str:video_id>/', AdminDeleteVideo.as_view(), name='delete_video'),
-    path('admin/list-videos-lectures/', AdminListVideosLecturesView.as_view(), name='list_videos_lectures'),  # ListVideos.jsx
-    path('admin/delete-chp-lecture/', AdminDeleteChapterView.as_view(), name='delete_video_lecture'),
     path('admin/create-schedule/', CreateScheduleView.as_view(), name='create_schedule'),  # CreateSchedule.jsx
     path("admin/list-schedule/", ListSchedulesView.as_view(), name="list_schedule"),
     path('admin/delete-schedule/<str:schedule_id>/', AdminDeleteScheduleView.as_view(), name='delete_schedule'),
