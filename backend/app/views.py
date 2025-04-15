@@ -51,57 +51,66 @@ class AdminLoginView(View):
 
 
 #------StudentCreteListDelete---       
+VALID_CLASS_GRADES = [
+    "11th", "12th", "FY BCom", "SY BCom", "TY BCom", 
+    "CA Foundation", "CA Intermediate", "CA Final"
+]
+
 class CreateStudentView(APIView):
     def post(self, request):
-        name = request.data.get("name")  # ✅ Replaced email with name
+        name = request.data.get("name")
         username = request.data.get("username")
         password = request.data.get("password")
-        class_grade = int(request.data.get("class_grade"))
+        class_grade = request.data.get("class_grade")
 
-        if not name or not username or not password:
+        # Validate the input fields
+        if not name or not username or not password or not class_grade:
             return Response({'error': 'All fields are required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if class_grade < 1 or class_grade > 12:
-            return Response({'error': 'Invalid class_grade. Must be between 1 and 12.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Validate class_grade
+        if class_grade not in VALID_CLASS_GRADES:
+            return Response({'error': 'Invalid class_grade. Must be one of: ' + ', '.join(VALID_CLASS_GRADES)},
+                             status=status.HTTP_400_BAD_REQUEST)
 
+        # Check if username already exists
         students = get_students_collection()
-
         if students.find_one({"username": username}):
             return Response({'error': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Create new student record
         student = {
-            "name": name,  # ✅ Store name
+            "name": name,
             "username": username,
-            "password": password,  # Note: Storing plain text passwords is unsafe!
+            "password": password,
             "class_grade": class_grade,
             "created_at": datetime.datetime.now().isoformat(),
         }
 
+        # Insert the student into the collection
         result = students.insert_one(student)
-        return Response(
-            {'id': str(result.inserted_id), 'name': name, 'username': username, 'class_grade': class_grade},
-            status=status.HTTP_201_CREATED,
-        )
+
+        return Response({
+            'id': str(result.inserted_id),
+            'name': name,
+            'username': username,
+            'class_grade': class_grade
+        }, status=status.HTTP_201_CREATED)
 
 class ListStudentsView(APIView):
     def get(self, request):
+        class_grade = request.query_params.get('class_grade')  # Get class_grade from query params
         students = get_students_collection()
-        class_grade = request.query_params.get('class_grade')
 
-        try:
-            if class_grade is not None:
-                class_grade = int(class_grade)
-                query = {"class_grade": class_grade}
-            else:
-                query = {}
-        except ValueError:
-            return Response({"error": "Invalid class_grade format"}, status=status.HTTP_400_BAD_REQUEST)
+        query = {}
+        if class_grade:
+            if class_grade not in VALID_CLASS_GRADES:
+                return Response({'error': 'Invalid class_grade.'}, status=400)
+            query["class_grade"] = class_grade  # Apply the class filter if provided
 
-        student_list = list(students.find(query))
-
+        student_list = list(students.find(query))  # Fetch students based on the query
         for student in student_list:
-            student["id"] = str(student["_id"])
-            del student["_id"]  # ✅ Remove ObjectId but keep password
+            student["id"] = str(student["_id"])  # Convert ObjectId to string
+            del student["_id"]  # Remove the ObjectId field
 
         return Response(student_list, status=status.HTTP_200_OK)
 
@@ -126,7 +135,7 @@ class AdminViewQueries(APIView):
         class_grade = request.query_params.get("class_grade")
         queries_collection = get_queries_collection()
 
-        query_filter = {"class_grade": int(class_grade)} if class_grade else {}
+        query_filter = {"class_grade": class_grade} if class_grade else {}
 
         queries = list(queries_collection.find(query_filter, {"_id": 1, "studentName": 1, "class_grade": 1, "query": 1}))
 
@@ -154,42 +163,29 @@ class AdminDeleteQuery(APIView):
 #-----assignment------
 class AdminCreateAssignmentView(APIView):
     def post(self, request):
-        # Get data from the request body
-        title = request.data.get('title')
-        description = request.data.get('description')
-        due_date = request.data.get('due_date')
-        class_grade = request.data.get('class_grade')
+        class_grade = request.data.get("class_grade")
+        title = request.data.get("title")
+        description = request.data.get("description")
+        due_date = request.data.get("due_date")
 
-        # Validation checks
-        if not title or not description or not due_date or not class_grade:
-            return Response({"error": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not all([class_grade, title, description, due_date]):
+            return Response({"error": "All fields are required"}, status=400)
 
-        try:
-            # Convert class_grade to integer
-            class_grade = int(class_grade)
-        except ValueError:
-            return Response({"error": "Invalid class_grade format"}, status=status.HTTP_400_BAD_REQUEST)
+        if class_grade not in VALID_CLASS_GRADES:
+            return Response({"error": "Invalid class_grade"}, status=400)
 
-        # Create assignment document
-        assignment = {
-            'title': title,
-            'description': description,
-            'due_date': due_date,
-            'class_grade': class_grade,
-            'created_at': datetime.datetime.now().isoformat(),
+        assignments = get_assignments_collection()
+        data = {
+            "class_grade": class_grade,
+            "title": title,
+            "description": description,
+            "due_date": due_date,
+            "created_at": datetime.datetime.now().isoformat(),
         }
 
-        # Insert into MongoDB
-        assignments_collection = get_assignments_collection()
-        result = assignments_collection.insert_one(assignment)
-
-        return Response({
-            'id': str(result.inserted_id), 
-            'title': title, 
-            'description': description, 
-            'due_date': due_date,
-            'class_grade': class_grade
-        }, status=status.HTTP_201_CREATED)
+        result = assignments.insert_one(data)
+        data["_id"] = str(result.inserted_id)
+        return Response(data, status=201)
 
 class AdminDeleteAssignmentView(APIView):
     def delete(self, request, assignment_id):
@@ -208,27 +204,20 @@ class AdminDeleteAssignmentView(APIView):
    
 class AdminListAssignmentView(APIView):
     def get(self, request):
-        # Fetch class_grade from query params if provided
-        class_grade = request.query_params.get('class_grade')
-
-        # Build the query for MongoDB
+        class_grade = request.query_params.get("class_grade")
         query = {}
+
         if class_grade:
-            try:
-                query["class_grade"] = int(class_grade)  # Ensure it's an integer
-            except ValueError:
-                return Response({"error": "Invalid class_grade format"}, status=status.HTTP_400_BAD_REQUEST)
+            if class_grade not in VALID_CLASS_GRADES:
+                return Response({"error": "Invalid class_grade"}, status=400)
+            query["class_grade"] = class_grade
 
-        # Fetch assignments from MongoDB
-        assignments = get_assignments_collection().find(query)
+        assignments = get_assignments_collection()
+        results = list(assignments.find(query))
+        for r in results:
+            r["_id"] = str(r["_id"])
 
-        # Format the assignments list
-        assignment_list = []
-        for assignment in assignments:
-            assignment['_id'] = str(assignment['_id'])  # Convert MongoDB ObjectId to string
-            assignment_list.append(assignment)
-
-        return Response(assignment_list, status=status.HTTP_200_OK)
+        return Response(results, status=200)
 
 #-----Submission-------
 
@@ -240,7 +229,18 @@ class ListSubmissionsView(APIView):
         class_grade = request.query_params.get("class_grade")
         submissions_collection = get_submissions_collection()
 
-        query = {"class": str(class_grade)} if class_grade else {}
+        # Update the valid class grades
+        valid_classes = [
+            "11th", "12th", "FY BCom", "SY BCom", "TY BCom", 
+            "CA Foundation", "CA Intermediate", "CA Final"
+        ]
+        
+        # Ensure class_grade is one of the valid classes
+        if class_grade and class_grade not in valid_classes:
+            return Response({'error': 'Invalid class_grade.'}, status=400)
+        
+        # Modify the query to use the class_grade
+        query = {"class": class_grade} if class_grade else {}
 
         # Sort by submitted_at descending
         submission_list = list(submissions_collection.find(query).sort("submitted_at", -1))
@@ -253,11 +253,7 @@ class ListSubmissionsView(APIView):
                 submitted_at = submitted_at.isoformat()
 
             raw_file_url = submission.get("file_url", "")
-
-            # If URL is already full (e.g., from Cloudinary), use it directly
-            full_file_url = (
-                raw_file_url if raw_file_url.startswith("http") else urljoin(BASE_URL, raw_file_url)
-            )
+            full_file_url = raw_file_url if raw_file_url.startswith("http") else urljoin(BASE_URL, raw_file_url)
 
             formatted = {
                 "_id": str(submission.get("_id", "")),
@@ -277,15 +273,23 @@ class ListSubmissionsView(APIView):
 
         return Response(formatted_submissions, status=status.HTTP_200_OK)
 
-
 class AdminUpdateSubmissionView(APIView):
     def patch(self, request, submission_id):
         try:
             submissions = get_submissions_collection()
             update_data = request.data
 
+            # Ensure status is provided and valid
             if not update_data.get("status"):
                 return JsonResponse({"error": "'status' field is required."}, status=400)
+
+            # Validate the class grade (if you want to enforce the validation here too)
+            valid_classes = [
+                "11th", "12th", "FY BCom", "SY BCom", "TY BCom", 
+                "CA Foundation", "CA Intermediate", "CA Final"
+            ]
+            if update_data.get("class_grade") and update_data["class_grade"] not in valid_classes:
+                return JsonResponse({"error": "Invalid class_grade."}, status=400)
 
             if ObjectId.is_valid(submission_id):
                 query = {"_id": ObjectId(submission_id)}
@@ -460,29 +464,37 @@ class ListSubjectsByClassView(APIView):
 class CreateScheduleView(APIView):
     def post(self, request):
         schedules = get_schedules_collection()
-        
+        class_grade = request.data.get("class_grade")
+
+        if class_grade not in VALID_CLASS_GRADES:
+            return JsonResponse({"error": "Invalid class_grade."}, status=400)
+
         schedule_data = {
-            "class_grade": request.data.get("class_grade"),
+            "class_grade": class_grade,
             "subject": request.data.get("subject"),
             "day": request.data.get("day"),
             "start_time": request.data.get("start_time"),
             "end_time": request.data.get("end_time"),
         }
 
-        inserted_schedule = schedules.insert_one(schedule_data)
-        schedule_data["_id"] = str(inserted_schedule.inserted_id)  # ✅ Convert ObjectId to string
+        inserted = schedules.insert_one(schedule_data)
+        schedule_data["_id"] = str(inserted.inserted_id)
 
-        return JsonResponse(schedule_data, safe=False, status=201)  # ✅ Use Js
+        return JsonResponse(schedule_data, safe=False, status=201)
 
 class ListSchedulesView(APIView):
     def get(self, request):
         class_grade = request.query_params.get('class_grade')
-        schedules = get_schedules_collection()
+        query = {}
 
-        query = {} if not class_grade else {'class_grade': int(class_grade)}
+        if class_grade:
+            if class_grade not in VALID_CLASS_GRADES:
+                return Response({'error': 'Invalid class_grade.'}, status=400)
+            query["class_grade"] = class_grade
+
+        schedules = get_schedules_collection()
         schedule_list = list(schedules.find(query))
 
-        # ✅ Convert `_id` from ObjectId to string
         for schedule in schedule_list:
             schedule["_id"] = str(schedule["_id"])
 
@@ -703,78 +715,44 @@ class StudentSubmitAssignmentView(APIView):
 #videos
 class StudentListVideosLecturesView(APIView):
     def get(self, request):
-        try:
-            collection = get_videos_lectures_collection()
-            videos = list(collection.find())
+        selected_class = request.GET.get("class")
+        if not selected_class:
+            return Response({"error": "Class is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-            if not videos:
-                return Response({"message": "No videos found"}, status=status.HTTP_404_NOT_FOUND)
+        collection = get_videos_lectures_collection()
+        data = list(collection.find({"class": selected_class}))
 
-            class_structure = {}
+        if not data:
+            return Response({"message": "No content found for this class."}, status=status.HTTP_404_NOT_FOUND)
 
-            for video in videos:
-                class_grade = video.get("class_grade")
-                subject = video.get("subject", "Unknown Subject")
-                chapter = video.get("chapter", "Unknown Chapter")
+        # Structure: [{ subject: "", chapters: [{ chapter: "", videos: [..] }] }]
+        structured_data = {}
 
-                # Convert ObjectId to string
-                video_id = str(video.get("_id"))
+        for doc in data:
+            subject = doc.get("subject")
+            chapter = doc.get("chapter")
+            videos = doc.get("videos", [])
 
-                # Initialize class level
-                if class_grade not in class_structure:
-                    class_structure[class_grade] = {}
+            if subject not in structured_data:
+                structured_data[subject] = {}
 
-                # Initialize subject level
-                if subject not in class_structure[class_grade]:
-                    class_structure[class_grade][subject] = {}
+            if chapter not in structured_data[subject]:
+                structured_data[subject][chapter] = []
 
-                # Initialize chapter level
-                if chapter not in class_structure[class_grade][subject]:
-                    class_structure[class_grade][subject][chapter] = {
-                        "videos": [],
-                        "pdfs": []
-                    }
+            structured_data[subject][chapter].extend(videos)
 
-                # Append video
-                class_structure[class_grade][subject][chapter]["videos"].append({
-                    "id": video_id,
-                    "title": video.get("title"),
-                    "video_url": video.get("video_url"),
-                    "description": video.get("description", "")
+        # Convert to list format for React Native folder-style
+        result = []
+        for subject, chapters in structured_data.items():
+            subject_data = {"subject": subject, "chapters": []}
+            for chapter, videos in chapters.items():
+                subject_data["chapters"].append({
+                    "chapter": chapter,
+                    "videos": videos
                 })
+            result.append(subject_data)
 
-                # Append PDF if available
-                if video.get("pdf_url"):
-                    class_structure[class_grade][subject][chapter]["pdfs"].append({
-                        "pdf_title": f"{video.get('title')} Notes",
-                        "pdf_url": video.get("pdf_url")
-                    })
-
-            # Transform into a clean frontend-friendly format
-            result = []
-            for class_grade, subjects in class_structure.items():
-                result.append({
-                    "class_grade": class_grade,
-                    "subjects": [
-                        {
-                            "subject_name": subject,
-                            "chapters": [
-                                {
-                                    "chapter_name": chapter,
-                                    "videos": data["videos"],
-                                    "pdfs": data["pdfs"]
-                                }
-                                for chapter, data in chapters.items()
-                            ]
-                        }
-                        for subject, chapters in subjects.items()
-                    ]
-                })
-
-            return Response(result, status=200)
-
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(result, status=status.HTTP_200_OK)
 
 
 class StudentQueryView(APIView):
