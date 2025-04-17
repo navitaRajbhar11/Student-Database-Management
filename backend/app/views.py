@@ -19,6 +19,10 @@ from urllib.parse import urljoin
 import datetime
 import uuid
 import json
+VALID_CLASS_GRADES = [
+    "11th", "12th", "FY BCom", "SY BCom", "TY BCom", 
+    "CA Foundation", "CA Intermediate", "CA Final"
+]
 from .db import (
     get_students_collection, get_admins_collection, get_assignments_collection,get_submissions_collection,
     get_schedules_collection, get_videos_lectures_collection,get_queries_collection
@@ -51,10 +55,6 @@ class AdminLoginView(View):
 
 
 #------StudentCreteListDelete---       
-VALID_CLASS_GRADES = [
-    "11th", "12th", "FY BCom", "SY BCom", "TY BCom", 
-    "CA Foundation", "CA Intermediate", "CA Final"
-]
 
 class CreateStudentView(APIView):
     def post(self, request):
@@ -558,8 +558,19 @@ class StudentLoginView(APIView):
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
 class StudentProfileView(APIView):
+    VALID_CLASS_GRADES = {
+        "11th": "11th",
+        "12th": "12th",
+        "FY BCom": "FY BCom",
+        "SY BCom": "SY BCom",
+        "TY BCom": "TY BCom",
+        "CA Foundation": "CA Foundation",
+        "CA Intermediate": "CA Intermediate",
+        "CA Final": "CA Final"
+    }
+
     def get(self, request):
-        student_id = request.GET.get("student_id")  # Get from query params
+        student_id = request.query_params.get("student_id")
 
         if not student_id:
             return Response({"error": "Student ID is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -567,18 +578,23 @@ class StudentProfileView(APIView):
         students_collection = get_students_collection()
 
         try:
-            student = students_collection.find_one({"_id": ObjectId(student_id)})
+            # Check if the student_id is a valid ObjectId
+            student_id = ObjectId(student_id)
         except Exception as e:
-            print(f"Error fetching student: {e}")
-            return Response({"error": "Invalid Student ID or database issue"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Invalid Student ID format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Try to fetch the student from the database
+        student = students_collection.find_one({"_id": student_id})
 
         if student:
-            print("Fetched student:", student)  # For debugging
+            raw_grade = student.get("class_grade", "")
+            class_grade = self.VALID_CLASS_GRADES.get(raw_grade, raw_grade)
+
             student_data = {
                 "id": str(student["_id"]),
                 "name": student.get("name", ""),
                 "username": student.get("username", ""),
-                "class_grade": student.get("class_grade", ""),
+                "class_grade": class_grade,
             }
             return Response(student_data, status=status.HTTP_200_OK)
 
@@ -592,9 +608,12 @@ class StudentListAssignmentsView(APIView):
         if not student_id or not class_grade:
             return Response({"error": "Student ID and class_grade are required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            class_grade = int(class_grade)
-        except ValueError:
+        # Class grade should be a string, so no need to convert it to an integer
+        VALID_CLASS_GRADES = [
+            "11th", "12th", "FY BCom", "SY BCom", "TY BCom", 
+            "CA Foundation", "CA Intermediate", "CA Final"
+        ]
+        if class_grade not in VALID_CLASS_GRADES:
             return Response({"error": "Invalid class_grade format."}, status=status.HTTP_400_BAD_REQUEST)
 
         assignments_collection = get_assignments_collection()
@@ -607,21 +626,24 @@ class StudentListAssignmentsView(APIView):
 
         return Response(assignment_list, status=status.HTTP_200_OK)
 
-
 class StudentSubmitAssignmentView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request):
         student_name = request.data.get("student_name")
-        student_class = request.data.get("class")
+        student_class = request.data.get("class_grade")  # ✅ updated
         assignment_title = request.data.get("assignment_title")
         due_date = request.data.get("due_date")
         file = request.FILES.get("file")
 
-        # ✅ Validation
+        # ✅ Required field validation
         if not all([student_name, student_class, assignment_title, due_date, file]):
             return Response({"error": "All fields are required"}, status=400)
 
+        if student_class not in VALID_CLASS_GRADES:
+            return Response({"error": "Invalid class selected."}, status=400)
+
+        # ✅ File extension validation
         allowed_extensions = ["pdf", "docx"]
         file_extension = file.name.split(".")[-1].lower()
         if file_extension not in allowed_extensions:
@@ -639,36 +661,36 @@ class StudentSubmitAssignmentView(APIView):
         SCOPES = ['https://www.googleapis.com/auth/drive']
         SERVICE_ACCOUNT_FILE = settings.GOOGLE_DRIVE_CREDENTIALS_FILE
 
-        credentials = service_account.Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_FILE, scopes=SCOPES
-        )
-        drive_service = build('drive', 'v3', credentials=credentials)
-
-        # Parent folder (your "Submission" folder)
-        PARENT_FOLDER_ID = "1WAPvWKDfCMLk8reA3qQbROQA5Nlw5FgI"
-
-        def get_or_create_folder(folder_name, parent_id):
-            """Create folder inside Submission or return existing one"""
-            query = (
-                f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' "
-                f"and '{parent_id}' in parents and trashed=false"
-            )
-            result = drive_service.files().list(q=query).execute()
-            files = result.get('files', [])
-            if files:
-                return files[0]['id']
-            else:
-                metadata = {
-                    'name': folder_name,
-                    'mimeType': 'application/vnd.google-apps.folder',
-                    'parents': [parent_id]
-                }
-                folder = drive_service.files().create(body=metadata, fields='id').execute()
-                return folder.get('id')
-
         try:
+            credentials = service_account.Credentials.from_service_account_file(
+                SERVICE_ACCOUNT_FILE, scopes=SCOPES
+            )
+            drive_service = build('drive', 'v3', credentials=credentials)
+
+            # Parent folder (your "Submission" folder)
+            PARENT_FOLDER_ID = "1WAPvWKDfCMLk8reA3qQbROQA5Nlw5FgI"
+
+            def get_or_create_folder(folder_name, parent_id):
+                """Create folder inside Submission or return existing one"""
+                query = (
+                    f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' "
+                    f"and '{parent_id}' in parents and trashed=false"
+                )
+                result = drive_service.files().list(q=query).execute()
+                files = result.get('files', [])
+                if files:
+                    return files[0]['id']
+                else:
+                    metadata = {
+                        'name': folder_name,
+                        'mimeType': 'application/vnd.google-apps.folder',
+                        'parents': [parent_id]
+                    }
+                    folder = drive_service.files().create(body=metadata, fields='id').execute()
+                    return folder.get('id')
+
             # 🔥 Class folder inside "Submission"
-            class_folder = get_or_create_folder(f"Class {student_class}", PARENT_FOLDER_ID)
+            class_folder = get_or_create_folder(f"{student_class}", PARENT_FOLDER_ID)
 
             file_stream = io.BytesIO(file.read())
             media = MediaIoBaseUpload(file_stream, mimetype=file.content_type, resumable=True)
@@ -691,7 +713,7 @@ class StudentSubmitAssignmentView(APIView):
             submissions = get_submissions_collection()
             submissions.insert_one({
                 "student_name": student_name,
-                "class": student_class,
+                "class_grade": student_class,
                 "assignment_title": assignment_title,
                 "due_date": due_date,
                 "filename": file.name,
@@ -754,7 +776,6 @@ class StudentListVideosLecturesView(APIView):
 
         return Response(result, status=status.HTTP_200_OK)
 
-
 class StudentQueryView(APIView):
     def post(self, request):
         data = request.data
@@ -770,11 +791,17 @@ class StudentQueryView(APIView):
 
         new_query = {
             "studentName": student_name,
-            "class_grade": int(class_grade),
+            "class_grade": class_grade,  # ✅ Now keeping it as a string
             "query": query_text
         }
 
-        inserted = queries_collection.insert_one(new_query)
+        try:
+            inserted = queries_collection.insert_one(new_query)
+        except Exception as e:
+            return Response(
+                {"error": "Failed to upload query", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         return Response(
             {"message": "Query uploaded successfully.", "query_id": str(inserted.inserted_id)},
@@ -793,7 +820,8 @@ class StudentScheduleView(APIView):
             )
 
         try:
-            query = {'class_grade': int(class_grade)}
+            # No int() conversion here
+            query = {'class_grade': class_grade}
             schedule_list = list(schedules.find(query))
 
             for schedule in schedule_list:
