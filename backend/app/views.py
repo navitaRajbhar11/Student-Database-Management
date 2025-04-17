@@ -11,7 +11,6 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from google.oauth2 import service_account
-from django.core.exceptions import ValidationError
 import io, os, datetime
 from django.conf import settings
 from django.views import View
@@ -620,39 +619,117 @@ class StudentListAssignmentsView(APIView):
         return Response(assignment_list, status=status.HTTP_200_OK)
 
 
-
 class StudentSubmitAssignmentView(APIView):
-    def post(self, request, *args, **kwargs):
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request):
+        student_name = request.data.get("student_name")
+        student_class = request.data.get("class_grade")
+        assignment_title = request.data.get("assignment_title")
+        due_date = request.data.get("due_date")
+        file = request.FILES.get("file")
+
+        # Basic field validation
+        if not all([student_name, student_class, assignment_title, due_date, file]):
+            return JsonResponse({"error": "All fields are required"}, status=400)
+
+        # File validation
+        allowed_extensions = ["pdf", "docx"]
+        file_extension = file.name.split(".")[-1].lower()
+        if file_extension not in allowed_extensions:
+            return JsonResponse({"error": "Only PDF and DOCX files allowed"}, status=400)
+
+        if file.size > 1 * 1024 * 1024:  # 1MB limit
+            return JsonResponse({"error": "File too large. Max size is 1MB"}, status=400)
+
         try:
-            assignment_title = request.data.get("assignment_title")
-            student_name = request.data.get("student_name")
-            class_grade = request.data.get("class_grade")
-            file = request.FILES.get("file")
+            datetime.datetime.strptime(due_date, "%Y-%m-%d")
+        except ValueError:
+            return JsonResponse({"error": "Invalid due_date format. Use YYYY-MM-DD."}, status=400)
 
-            if not assignment_title or not student_name or not class_grade or not file:
-                return Response({"error": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
+        # Google Drive integration setup
+        SCOPES = ['https://www.googleapis.com/auth/drive']
+        SERVICE_ACCOUNT_FILE = settings.GOOGLE_DRIVE_CREDENTIALS_FILE
 
-            # Handle file validation (size, type) if needed
-            # File size check (for example 1MB limit)
-            if file.size > 1024 * 1024:  # 1MB
-                raise ValidationError("File size exceeds 1MB limit.")
+        # Retry logic for Google Drive upload
+        for attempt in range(3):
+            try:
+                # Load credentials and build the Google Drive service
+                credentials = service_account.Credentials.from_service_account_file(
+                    SERVICE_ACCOUNT_FILE, scopes=SCOPES
+                )
+                drive_service = build('drive', 'v3', credentials=credentials)
 
-            # Save the file and other data (e.g., assignment) to the database
-            # Assuming you have an Assignment model to save the data
+                PARENT_FOLDER_ID = "1WAPvWKDfCMLk8reA3qQbROQA5Nlw5FgI"  # Replace with your root folder ID
 
-            # assignment = Assignment.objects.create(
-            #     title=assignment_title,
-            #     student_name=student_name,
-            #     class_grade=class_grade,
-            #     file=file,
-            # )
+                # Check if folder exists, if not create it
+                # 1. List all folders to check if folder for the class exists
+                query = f"mimeType = 'application/vnd.google-apps.folder' and name = '{student_class}' and '{PARENT_FOLDER_ID}' in parents"
+                results = drive_service.files().list(q=query, fields="files(id, name)").execute()
+                folders = results.get('files', [])
 
-            return Response({"message": "Assignment submitted successfully!"}, status=status.HTTP_201_CREATED)
+                if folders:
+                    # If folder exists, get the first matching folder's ID
+                    class_folder = folders[0]['id']
+                else:
+                    # If no folder exists, create a new one
+                    metadata = {
+                        'name': student_class,
+                        'mimeType': 'application/vnd.google-apps.folder',
+                        'parents': [PARENT_FOLDER_ID]
+                    }
+                    folder = drive_service.files().create(body=metadata, fields='id').execute()
+                    class_folder = folder['id']
 
-        except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                # Upload the assignment file to the folder
+                file_stream = io.BytesIO(file.read())
+                media = MediaIoBaseUpload(file_stream, mimetype=file.content_type, resumable=True)
+                metadata = {'name': file.name, 'parents': [class_folder]}
+
+                uploaded_file = drive_service.files().create(
+                    body=metadata, media_body=media,
+                    fields='id,webViewLink,webContentLink'
+                ).execute()
+
+                # Get the file URLs for viewing and downloading
+                viewable_url = uploaded_file.get('webViewLink')
+                download_url = uploaded_file.get('webContentLink')
+
+                break  # Exit loop if successful
+
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(2)  # Retry after 2 seconds
+                    continue
+                print("❌ Google Drive Upload Error:", e)
+                return JsonResponse({"error": "Failed to upload to Google Drive"}, status=500)
+
+        # Save the submission in MongoDB
+        try:
+            submissions = get_submissions_collection()
+            submissions.insert_one({
+                "student_name": student_name,
+                "class_grade": student_class,
+                "assignment_title": assignment_title,
+                "due_date": due_date,
+                "filename": file.name,
+                "file_url": viewable_url,
+                "viewable_url": viewable_url,
+                "download_url": download_url,
+                "content_type": file.content_type,
+                "submitted_at": datetime.datetime.utcnow().isoformat(),
+                "status": "Pending"
+            })
         except Exception as e:
-            return Response({"error": "An error occurred while processing the assignment."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            print("❌ MongoDB Insert Error:", e)
+            return JsonResponse({"error": "Failed to save submission"}, status=500)
+
+        # Return success message with the URLs
+        return JsonResponse({
+            "message": "Assignment submitted successfully",
+            "viewable_url": viewable_url,
+            "download_url": download_url
+        }, status=201)
 
 #videos
 class StudentListVideosLecturesView(APIView):
