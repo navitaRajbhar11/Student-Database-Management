@@ -734,7 +734,7 @@ class StudentSubmitAssignmentView(APIView):
 #videos
 class StudentListVideosLecturesView(APIView):
     def get(self, request):
-        selected_class = request.GET.get("class_grade")  # ✅ FIXED
+        selected_class = request.GET.get("class_grade")  # Ensure class_grade is being passed
 
         if not selected_class:
             return Response({"error": "Class is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -750,7 +750,7 @@ class StudentListVideosLecturesView(APIView):
         for doc in data:
             subject = doc.get("subject")
             chapter = doc.get("chapter")
-            videos = doc.get("videos", [])
+            videos = doc.get("videos", [])  # Ensure videos field exists
 
             if subject not in structured:
                 structured[subject] = {}
