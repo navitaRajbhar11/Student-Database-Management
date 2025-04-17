@@ -744,34 +744,40 @@ class StudentListVideosLecturesView(APIView):
         if not data:
             return Response({"message": "No content found for this class."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Structure: [{ subject: "", chapters: [{ chapter: "", videos: [..] }] }]
-        structured_data = {}
+        # Final structure: [{ subject: "", chapters: [{ chapter: "", videos: [...] }] }]
+        structured = {}
 
         for doc in data:
             subject = doc.get("subject")
             chapter = doc.get("chapter")
             videos = doc.get("videos", [])
 
-            if subject not in structured_data:
-                structured_data[subject] = {}
+            if subject not in structured:
+                structured[subject] = {}
 
-            if chapter not in structured_data[subject]:
-                structured_data[subject][chapter] = []
+            if chapter not in structured[subject]:
+                structured[subject][chapter] = []
 
-            structured_data[subject][chapter].extend(videos)
+            structured[subject][chapter].extend(videos)
 
-        # Convert to list format for React Native folder-style
         result = []
-        for subject, chapters in structured_data.items():
-            subject_data = {"subject": subject, "chapters": []}
+        for subject, chapters in structured.items():
+            subject_entry = {
+                "subject": subject,
+                "chapters": []
+            }
+
             for chapter, videos in chapters.items():
-                subject_data["chapters"].append({
+                chapter_entry = {
                     "chapter": chapter,
                     "videos": videos
-                })
-            result.append(subject_data)
+                }
+                subject_entry["chapters"].append(chapter_entry)
+
+            result.append(subject_entry)
 
         return Response(result, status=status.HTTP_200_OK)
+
 
 class StudentQueryView(APIView):
     def post(self, request):
