@@ -623,84 +623,62 @@ class StudentSubmitAssignmentView(APIView):
 
     def post(self, request):
         student_name = request.data.get("student_name")
-        student_class = request.data.get("class_grade")  # ✅ updated
+        student_class = request.data.get("class_grade")
         assignment_title = request.data.get("assignment_title")
         due_date = request.data.get("due_date")
         file = request.FILES.get("file")
 
-        # ✅ Required field validation
         if not all([student_name, student_class, assignment_title, due_date, file]):
-            return Response({"error": "All fields are required"}, status=400)
+            return JsonResponse({"error": "All fields are required"}, status=400)
 
-        if student_class not in VALID_CLASS_GRADES:
-            return Response({"error": "Invalid class selected."}, status=400)
-
-        # ✅ File extension validation
         allowed_extensions = ["pdf", "docx"]
         file_extension = file.name.split(".")[-1].lower()
         if file_extension not in allowed_extensions:
-            return Response({"error": "Only PDF and DOCX files allowed"}, status=400)
+            return JsonResponse({"error": "Only PDF and DOCX files allowed"}, status=400)
 
         if file.size > 1 * 1024 * 1024:  # 1MB limit
-            return Response({"error": "File too large. Max size is 1MB"}, status=400)
+            return JsonResponse({"error": "File too large. Max size is 1MB"}, status=400)
 
         try:
             datetime.datetime.strptime(due_date, "%Y-%m-%d")
         except ValueError:
-            return Response({"error": "Invalid due_date format. Use YYYY-MM-DD."}, status=400)
+            return JsonResponse({"error": "Invalid due_date format. Use YYYY-MM-DD."}, status=400)
 
-        # ✅ Google Drive Setup
         SCOPES = ['https://www.googleapis.com/auth/drive']
         SERVICE_ACCOUNT_FILE = settings.GOOGLE_DRIVE_CREDENTIALS_FILE
 
-        try:
-            credentials = service_account.Credentials.from_service_account_file(
-                SERVICE_ACCOUNT_FILE, scopes=SCOPES
-            )
-            drive_service = build('drive', 'v3', credentials=credentials)
-
-            # Parent folder (your "Submission" folder)
-            PARENT_FOLDER_ID = "1WAPvWKDfCMLk8reA3qQbROQA5Nlw5FgI"
-
-            def get_or_create_folder(folder_name, parent_id):
-                """Create folder inside Submission or return existing one"""
-                query = (
-                    f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' "
-                    f"and '{parent_id}' in parents and trashed=false"
+        # Retry logic for Google Drive Upload
+        for attempt in range(3):
+            try:
+                credentials = service_account.Credentials.from_service_account_file(
+                    SERVICE_ACCOUNT_FILE, scopes=SCOPES
                 )
-                result = drive_service.files().list(q=query).execute()
-                files = result.get('files', [])
-                if files:
-                    return files[0]['id']
-                else:
-                    metadata = {
-                        'name': folder_name,
-                        'mimeType': 'application/vnd.google-apps.folder',
-                        'parents': [parent_id]
-                    }
-                    folder = drive_service.files().create(body=metadata, fields='id').execute()
-                    return folder.get('id')
+                drive_service = build('drive', 'v3', credentials=credentials)
 
-            # 🔥 Class folder inside "Submission"
-            class_folder = get_or_create_folder(f"{student_class}", PARENT_FOLDER_ID)
+                PARENT_FOLDER_ID = "1WAPvWKDfCMLk8reA3qQbROQA5Nlw5FgI"
 
-            file_stream = io.BytesIO(file.read())
-            media = MediaIoBaseUpload(file_stream, mimetype=file.content_type, resumable=True)
-            metadata = {'name': file.name, 'parents': [class_folder]}
+                class_folder = get_or_create_folder(f"{student_class}", PARENT_FOLDER_ID)
 
-            uploaded_file = drive_service.files().create(
-                body=metadata, media_body=media,
-                fields='id,webViewLink,webContentLink'
-            ).execute()
+                file_stream = io.BytesIO(file.read())
+                media = MediaIoBaseUpload(file_stream, mimetype=file.content_type, resumable=True)
+                metadata = {'name': file.name, 'parents': [class_folder]}
 
-            viewable_url = uploaded_file.get('webViewLink')
-            download_url = uploaded_file.get('webContentLink')
+                uploaded_file = drive_service.files().create(
+                    body=metadata, media_body=media,
+                    fields='id,webViewLink,webContentLink'
+                ).execute()
 
-        except Exception as e:
-            print("❌ Google Drive Upload Error:", e)
-            return Response({"error": "Failed to upload to Google Drive"}, status=500)
+                viewable_url = uploaded_file.get('webViewLink')
+                download_url = uploaded_file.get('webContentLink')
 
-        # ✅ Save to MongoDB
+                break  # Exit loop if successful
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(2)  # Retry after 2 seconds
+                    continue
+                print("❌ Google Drive Upload Error:", e)
+                return JsonResponse({"error": "Failed to upload to Google Drive"}, status=500)
+
         try:
             submissions = get_submissions_collection()
             submissions.insert_one({
@@ -718,9 +696,9 @@ class StudentSubmitAssignmentView(APIView):
             })
         except Exception as e:
             print("❌ MongoDB Insert Error:", e)
-            return Response({"error": "Failed to save submission"}, status=500)
+            return JsonResponse({"error": "Failed to save submission"}, status=500)
 
-        return Response({
+        return JsonResponse({
             "message": "Assignment submitted successfully",
             "viewable_url": viewable_url,
             "download_url": download_url
