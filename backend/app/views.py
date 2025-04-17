@@ -734,7 +734,8 @@ class StudentSubmitAssignmentView(APIView):
 #videos
 class StudentListVideosLecturesView(APIView):
     def get(self, request):
-        selected_class = request.GET.get("class")
+        selected_class = request.GET.get("class_grade")  # ✅ FIXED
+
         if not selected_class:
             return Response({"error": "Class is required"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -744,7 +745,6 @@ class StudentListVideosLecturesView(APIView):
         if not data:
             return Response({"message": "No content found for this class."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Final structure: [{ subject: "", chapters: [{ chapter: "", videos: [...] }] }]
         structured = {}
 
         for doc in data:
