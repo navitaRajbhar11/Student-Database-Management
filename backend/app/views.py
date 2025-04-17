@@ -229,20 +229,12 @@ class ListSubmissionsView(APIView):
         class_grade = request.query_params.get("class_grade")
         submissions_collection = get_submissions_collection()
 
-        # Update the valid class grades
-        valid_classes = [
-            "11th", "12th", "FY BCom", "SY BCom", "TY BCom", 
-            "CA Foundation", "CA Intermediate", "CA Final"
-        ]
-        
-        # Ensure class_grade is one of the valid classes
-        if class_grade and class_grade not in valid_classes:
+        if class_grade and class_grade not in VALID_CLASS_GRADES:
             return Response({'error': 'Invalid class_grade.'}, status=400)
-        
-        # Modify the query to use the class_grade
-        query = {"class": class_grade} if class_grade else {}
 
-        # Sort by submitted_at descending
+        # ✅ Fix field name from 'class' to 'class_grade'
+        query = {"class_grade": class_grade} if class_grade else {}
+
         submission_list = list(submissions_collection.find(query).sort("submitted_at", -1))
 
         formatted_submissions = []
@@ -258,12 +250,12 @@ class ListSubmissionsView(APIView):
             formatted = {
                 "_id": str(submission.get("_id", "")),
                 "student_name": submission.get("student_name", ""),
-                "class": submission.get("class", ""),
+                "class": submission.get("class_grade", ""),  # ✅ fixed here
                 "assignment_title": submission.get("assignment_title", ""),
                 "filename": submission.get("filename", ""),
                 "file_url": full_file_url,
-                "viewable_url": full_file_url,  # For preview
-                "download_url": full_file_url,  # For download
+                "viewable_url": full_file_url,
+                "download_url": full_file_url,
                 "content_type": submission.get("content_type", ""),
                 "submitted_at": submitted_at,
                 "status": submission.get("status", "Pending")
