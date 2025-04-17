@@ -628,26 +628,37 @@ class StudentSubmitAssignmentView(APIView):
         due_date = request.data.get("due_date")
         file = request.FILES.get("file")
 
+        # Basic field validation
         if not all([student_name, student_class, assignment_title, due_date, file]):
             return JsonResponse({"error": "All fields are required"}, status=400)
 
+        # Validate class_grade
+        if student_class not in VALID_CLASS_GRADES:
+            return JsonResponse({"error": f"Invalid class_grade. Must be one of {VALID_CLASS_GRADES}"}, status=400)
+
+        # File extension validation
         allowed_extensions = ["pdf", "docx"]
         file_extension = file.name.split(".")[-1].lower()
         if file_extension not in allowed_extensions:
             return JsonResponse({"error": "Only PDF and DOCX files allowed"}, status=400)
 
-        if file.size > 1 * 1024 * 1024:  # 1MB limit
+        # File size validation (limit: 1MB)
+        if file.size > 1 * 1024 * 1024:
             return JsonResponse({"error": "File too large. Max size is 1MB"}, status=400)
 
+        # Date format validation
         try:
             datetime.datetime.strptime(due_date, "%Y-%m-%d")
         except ValueError:
             return JsonResponse({"error": "Invalid due_date format. Use YYYY-MM-DD."}, status=400)
 
+        # Google Drive setup
         SCOPES = ['https://www.googleapis.com/auth/drive']
         SERVICE_ACCOUNT_FILE = settings.GOOGLE_DRIVE_CREDENTIALS_FILE
 
-        # Retry logic for Google Drive Upload
+        # Upload to Google Drive with retry logic
+        viewable_url = ""
+        download_url = ""
         for attempt in range(3):
             try:
                 credentials = service_account.Credentials.from_service_account_file(
@@ -655,30 +666,30 @@ class StudentSubmitAssignmentView(APIView):
                 )
                 drive_service = build('drive', 'v3', credentials=credentials)
 
-                PARENT_FOLDER_ID = "1WAPvWKDfCMLk8reA3qQbROQA5Nlw5FgI"
-
-                class_folder = get_or_create_folder(f"{student_class}", PARENT_FOLDER_ID)
+                parent_folder_id = "1WAPvWKDfCMLk8reA3qQbROQA5Nlw5FgI"
+                class_folder = get_or_create_folder(student_class, parent_folder_id)
 
                 file_stream = io.BytesIO(file.read())
                 media = MediaIoBaseUpload(file_stream, mimetype=file.content_type, resumable=True)
                 metadata = {'name': file.name, 'parents': [class_folder]}
 
                 uploaded_file = drive_service.files().create(
-                    body=metadata, media_body=media,
+                    body=metadata,
+                    media_body=media,
                     fields='id,webViewLink,webContentLink'
                 ).execute()
 
                 viewable_url = uploaded_file.get('webViewLink')
                 download_url = uploaded_file.get('webContentLink')
-
-                break  # Exit loop if successful
+                break
             except Exception as e:
                 if attempt < 2:
-                    time.sleep(2)  # Retry after 2 seconds
-                    continue
-                print("❌ Google Drive Upload Error:", e)
-                return JsonResponse({"error": "Failed to upload to Google Drive"}, status=500)
+                    time.sleep(2)
+                else:
+                    print("❌ Google Drive Upload Error:", e)
+                    return JsonResponse({"error": "Failed to upload to Google Drive"}, status=500)
 
+        # Save submission in MongoDB
         try:
             submissions = get_submissions_collection()
             submissions.insert_one({
