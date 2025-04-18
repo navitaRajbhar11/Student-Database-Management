@@ -756,26 +756,31 @@ class StudentListVideosLecturesView(APIView):
                 response[subject] = {}
 
             if chapter not in response[subject]:
-                response[subject][chapter] = []
+                response[subject][chapter] = {
+                    "videos": [],
+                    "pdfs": []
+                }
 
             # Add video entries
             for video in videos:
-                response[subject][chapter].append({
+                response[subject][chapter]["videos"].append({
                     "title": video.get("title", "Video"),
                     "video_url": video.get("video_url", ""),
                     "pdf_url": "",
                     "description": video.get("description", description),
-                    "type": "video"
+                    "type": "video",
+                    "_id": str(video.get("_id", ""))  # Add _id if needed
                 })
 
             # Add PDF entries
             for pdf in pdfs:
-                response[subject][chapter].append({
+                response[subject][chapter]["pdfs"].append({
                     "title": pdf.get("title", "PDF Notes"),
                     "video_url": "",
                     "pdf_url": pdf.get("url", ""),
                     "description": pdf.get("description", description),
-                    "type": "pdf"
+                    "type": "pdf",
+                    "_id": str(pdf.get("_id", ""))  # Add _id if needed
                 })
 
         return Response(response, status=status.HTTP_200_OK)
