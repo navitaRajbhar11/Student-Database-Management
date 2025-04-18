@@ -732,7 +732,7 @@ class StudentSubmitAssignmentView(APIView):
         }, status=201)
 
 #videos
-class StudentListLecturesView(APIView):
+class StudentListVideosLecturesView(APIView):
     def get(self, request):
         selected_class = request.GET.get("class_grade")
         if not selected_class:
