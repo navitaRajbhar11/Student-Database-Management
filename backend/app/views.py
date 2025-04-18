@@ -732,10 +732,9 @@ class StudentSubmitAssignmentView(APIView):
         }, status=201)
 
 #videos
-class StudentListVideosLecturesView(APIView):
+class StudentListLecturesView(APIView):
     def get(self, request):
-        selected_class = request.GET.get("class_grade")  # Ensure class_grade is being passed
-
+        selected_class = request.GET.get("class_grade")
         if not selected_class:
             return Response({"error": "Class is required"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -743,45 +742,43 @@ class StudentListVideosLecturesView(APIView):
         data = list(collection.find({"class": selected_class}))
 
         if not data:
-            return Response({"message": "No content found for this class."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "No lectures found for this class."}, status=status.HTTP_404_NOT_FOUND)
 
-        structured = {}
-
-        # Structuring the data: Chapter -> Subject -> Videos & PDFs
+        response = {}
         for doc in data:
             subject = doc.get("subject")
             chapter = doc.get("chapter")
             videos = doc.get("videos", [])
-            pdfs = doc.get("pdfs", [])  # Assuming PDFs are stored in 'pdfs' field
+            pdfs = doc.get("pdfs", [])
+            description = doc.get("description", "")
 
-            if chapter not in structured:
-                structured[chapter] = {}
+            if subject not in response:
+                response[subject] = {}
 
-            if subject not in structured[chapter]:
-                structured[chapter][subject] = {"videos": [], "pdfs": []}
+            if chapter not in response[subject]:
+                response[subject][chapter] = []
 
-            structured[chapter][subject]["videos"].extend(videos)
-            structured[chapter][subject]["pdfs"].extend(pdfs)
+            # Add video entries
+            for video in videos:
+                response[subject][chapter].append({
+                    "title": video.get("title", "Video"),
+                    "video_url": video.get("video_url", ""),
+                    "pdf_url": "",
+                    "description": video.get("description", description),
+                    "type": "video"
+                })
 
-        # Convert the structure into the desired format
-        result = []
-        for chapter, subjects in structured.items():
-            chapter_entry = {
-                "chapter": chapter,
-                "subjects": []
-            }
+            # Add PDF entries
+            for pdf in pdfs:
+                response[subject][chapter].append({
+                    "title": pdf.get("title", "PDF Notes"),
+                    "video_url": "",
+                    "pdf_url": pdf.get("url", ""),
+                    "description": pdf.get("description", description),
+                    "type": "pdf"
+                })
 
-            for subject, media in subjects.items():
-                subject_entry = {
-                    "subject": subject,
-                    "videos": media["videos"],
-                    "pdfs": media["pdfs"]
-                }
-                chapter_entry["subjects"].append(subject_entry)
-
-            result.append(chapter_entry)
-
-        return Response(result, status=status.HTTP_200_OK)
+        return Response(response, status=status.HTTP_200_OK)
 
 
 class StudentQueryView(APIView):
