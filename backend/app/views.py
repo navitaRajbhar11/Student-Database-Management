@@ -747,34 +747,39 @@ class StudentListVideosLecturesView(APIView):
 
         structured = {}
 
+        # Structuring the data: Chapter -> Subject -> Videos & PDFs
         for doc in data:
             subject = doc.get("subject")
             chapter = doc.get("chapter")
-            videos = doc.get("videos", [])  # Ensure videos field exists
+            videos = doc.get("videos", [])
+            pdfs = doc.get("pdfs", [])  # Assuming PDFs are stored in 'pdfs' field
 
-            if subject not in structured:
-                structured[subject] = {}
+            if chapter not in structured:
+                structured[chapter] = {}
 
-            if chapter not in structured[subject]:
-                structured[subject][chapter] = []
+            if subject not in structured[chapter]:
+                structured[chapter][subject] = {"videos": [], "pdfs": []}
 
-            structured[subject][chapter].extend(videos)
+            structured[chapter][subject]["videos"].extend(videos)
+            structured[chapter][subject]["pdfs"].extend(pdfs)
 
+        # Convert the structure into the desired format
         result = []
-        for subject, chapters in structured.items():
-            subject_entry = {
-                "subject": subject,
-                "chapters": []
+        for chapter, subjects in structured.items():
+            chapter_entry = {
+                "chapter": chapter,
+                "subjects": []
             }
 
-            for chapter, videos in chapters.items():
-                chapter_entry = {
-                    "chapter": chapter,
-                    "videos": videos
+            for subject, media in subjects.items():
+                subject_entry = {
+                    "subject": subject,
+                    "videos": media["videos"],
+                    "pdfs": media["pdfs"]
                 }
-                subject_entry["chapters"].append(chapter_entry)
+                chapter_entry["subjects"].append(subject_entry)
 
-            result.append(subject_entry)
+            result.append(chapter_entry)
 
         return Response(result, status=status.HTTP_200_OK)
 
