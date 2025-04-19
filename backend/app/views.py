@@ -751,75 +751,50 @@ class StudentSubmitAssignmentView(APIView):
         }, status=201)
 
 #videos
-class StudentListLecturesView(APIView):
-    def get(self, request):
-        selected_class = request.GET.get("class_grade")
-        if not selected_class:
-            return Response({"error": "Class is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        collection = get_videos_lectures_collection()
-        data = list(collection.find({"class": selected_class}))
-
-        if not data:
-            return Response({"message": "No lectures found for this class."}, status=status.HTTP_404_NOT_FOUND)
-
-        # Organize data by subjects and chapters
-        response = {}
-        for doc in data:
-            subject = doc.get("subject")
-            chapter = doc.get("chapter")
-            if subject not in response:
-                response[subject] = []
-            response[subject].append(chapter)
-
-        return Response(response, status=status.HTTP_200_OK)
-
-# views.py
-class StudentListChaptersView(APIView):
-    def get(self, request, subject):
-        class_grade = request.GET.get("class_grade")
-        if not class_grade:
-            return Response({"error": "class_grade is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        collection = get_videos_lectures_collection()
-        try:
-            data = list(collection.find({"subject": subject, "class_grade": class_grade}))
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        if not data:
-            return Response([], status=status.HTTP_200_OK)
-
-        # Extract unique chapter names
-        chapters = list({doc.get("chapter") for doc in data if doc.get("chapter")})
-
-        return Response(chapters, status=status.HTTP_200_OK)
-
-# views.py
-class StudentListVideosView(APIView):
+class StudentListVideosLecturesView(APIView):
     def get(self, request):
         subject = request.GET.get("subject")
-        chapter = request.GET.get("chapter")
-        if not subject or not chapter:
-            return Response({"error": "Subject and Chapter are required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not subject:
+            return Response({"error": "Subject is required"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Get all documents for the requested subject
         collection = get_videos_lectures_collection()
-        data = list(collection.find({"subject": subject, "chapter": chapter}))
+        data = list(collection.find({"subject": subject}))
 
         if not data:
-            return Response({"message": "No videos or PDFs found for this subject and chapter."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "No chapters found for this subject."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Organize data by subject and chapter
+        # Organize data by chapter, then videos and PDFs
         response = {}
         for doc in data:
-            videos = doc.get("videos", [])
-            pdfs = doc.get("pdfs", [])
-            response = {
-                "videos": videos,
-                "pdfs": pdfs
-            }
+            chapter = doc.get("chapter")
+            video_url = doc.get("video_url")
+            pdf_url = doc.get("pdf_url")
+            video_title = doc.get("video_title")
+            pdf_title = doc.get("pdf_title")
 
-        return Response(response, status=status.HTTP_200_OK)
+            if chapter not in response:
+                response[chapter] = {
+                    "videos": [],
+                    "pdfs": []
+                }
+
+            # Add video information to the chapter
+            if video_url:
+                response[chapter]["videos"].append({
+                    "title": video_title,
+                    "video_url": video_url
+                })
+
+            # Add PDF information to the chapter
+            if pdf_url:
+                response[chapter]["pdfs"].append({
+                    "title": pdf_title,
+                    "pdf_url": pdf_url
+                })
+
+        # Return the data grouped by subject and chapters
+        return Response({subject: response}, status=status.HTTP_200_OK)
 
 
 class StudentQueryView(APIView):
