@@ -783,6 +783,9 @@ class StudentListVideosLecturesView(APIView):
                     "_id": str(pdf.get("_id", ""))  # Add _id if needed
                 })
 
+        # Log the response data to ensure pdf_url is present
+        print(response)  # Add print statement to log the response
+
         return Response(response, status=status.HTTP_200_OK)
 
 
