@@ -776,26 +776,24 @@ class StudentListLecturesView(APIView):
 
 # views.py
 class StudentListChaptersView(APIView):
-    def get(self, request):
-        subject = request.GET.get("subject")
-        if not subject:
-            return Response({"error": "Subject is required"}, status=status.HTTP_400_BAD_REQUEST)
+    def get(self, request, subject):
+        class_grade = request.GET.get("class_grade")
+        if not class_grade:
+            return Response({"error": "class_grade is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         collection = get_videos_lectures_collection()
-        data = list(collection.find({"subject": subject}))
+        try:
+            data = list(collection.find({"subject": subject, "class_grade": class_grade}))
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         if not data:
-            return Response({"message": "No chapters found for this subject."}, status=status.HTTP_404_NOT_FOUND)
+            return Response([], status=status.HTTP_200_OK)
 
-        # Organize data by chapters
-        response = {}
-        for doc in data:
-            chapter = doc.get("chapter")
-            if subject not in response:
-                response[subject] = []
-            response[subject].append(chapter)
+        # Extract unique chapter names
+        chapters = list({doc.get("chapter") for doc in data if doc.get("chapter")})
 
-        return Response(response, status=status.HTTP_200_OK)
+        return Response(chapters, status=status.HTTP_200_OK)
 
 # views.py
 class StudentListVideosView(APIView):
