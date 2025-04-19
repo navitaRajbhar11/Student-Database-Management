@@ -732,7 +732,6 @@ class StudentSubmitAssignmentView(APIView):
         }, status=201)
 
 #videos
-# In your student-side API
 class StudentListVideosLecturesView(APIView):
     def get(self, request):
         selected_class = request.GET.get("class_grade")
@@ -762,8 +761,9 @@ class StudentListVideosLecturesView(APIView):
                     "pdfs": []
                 }
 
-            # Add video entries
+            # Log video details to check if title exists
             for video in videos:
+                print(f"Video Title: {video.get('title')}, Video Description: {video.get('description')}")
                 response[subject][chapter]["videos"].append({
                     "title": video.get("title", "Video"),
                     "video_url": video.get("video_url", ""),
@@ -773,8 +773,9 @@ class StudentListVideosLecturesView(APIView):
                     "_id": str(video.get("_id", ""))  # Add _id if needed
                 })
 
-            # Add PDF entries
+            # Log PDF details to check if title exists
             for pdf in pdfs:
+                print(f"PDF Title: {pdf.get('title')}, PDF Description: {pdf.get('description')}")
                 response[subject][chapter]["pdfs"].append({
                     "title": pdf.get("title", "PDF Notes"),
                     "video_url": "",
@@ -784,8 +785,6 @@ class StudentListVideosLecturesView(APIView):
                     "_id": str(pdf.get("_id", ""))  # Add _id if needed
                 })
 
-        # Log the response data
-        print(response)  # Log the response to inspect if PDFs are included
         return Response(response, status=status.HTTP_200_OK)
 
 
