@@ -768,8 +768,9 @@ class StudentListVideosLecturesView(APIView):
 
         data = list(collection.find(query))
 
+        # Return an empty response with a message instead of 404
         if not data:
-            return Response({"message": "No lectures found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "No lectures found.", "data": {}}, status=status.HTTP_200_OK)
 
         # Organize the data
         response = {}
@@ -806,7 +807,7 @@ class StudentListVideosLecturesView(APIView):
                     "type": "pdf"
                 })
 
-        return Response(response, status=status.HTTP_200_OK)
+        return Response({"message": "Lectures fetched successfully", "data": response}, status=status.HTTP_200_OK)
 
 
 class StudentQueryView(APIView):
