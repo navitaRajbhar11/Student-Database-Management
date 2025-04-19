@@ -751,11 +751,13 @@ class StudentSubmitAssignmentView(APIView):
         }, status=201)
 
 #videos
+
 class StudentListVideosLecturesView(APIView):
     def get(self, request):
         subject = request.GET.get("subject")
         class_grade = request.GET.get("class_grade")
 
+        # Check if class_grade is provided
         if not class_grade:
             return Response({"error": "class_grade is required"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -766,28 +768,31 @@ class StudentListVideosLecturesView(APIView):
         if subject:
             query["subject"] = subject
 
-        data = list(collection.find(query))
+        try:
+            data = list(collection.find(query))
+        except Exception as e:
+            return Response({"error": f"Error fetching data: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Return an empty response with a message instead of 404
+        # Return an empty response with a message instead of 404 if no data found
         if not data:
             return Response({"message": "No lectures found.", "data": {}}, status=status.HTTP_200_OK)
 
-        # Organize the data
+        # Organize the data by subject and chapter
         response = {}
 
         for doc in data:
-            subject = doc.get("subject", "Unknown Subject")
+            subject_name = doc.get("subject", "Unknown Subject")
             chapter = doc.get("chapter", "Unknown Chapter")
 
             # Initialize subject and chapter in response
-            if subject not in response:
-                response[subject] = {}
-            if chapter not in response[subject]:
-                response[subject][chapter] = {"videos": [], "pdfs": []}
+            if subject_name not in response:
+                response[subject_name] = {}
+            if chapter not in response[subject_name]:
+                response[subject_name][chapter] = {"videos": [], "pdfs": []}
 
-            # Append video
+            # Append video data if available
             if doc.get("video_url"):
-                response[subject][chapter]["videos"].append({
+                response[subject_name][chapter]["videos"].append({
                     "_id": str(doc.get("_id", ObjectId())),
                     "title": doc.get("video_title", "Untitled Video"),
                     "video_url": doc.get("video_url"),
@@ -796,9 +801,9 @@ class StudentListVideosLecturesView(APIView):
                     "type": "video"
                 })
 
-            # Append PDF
+            # Append PDF data if available
             if doc.get("pdf_url"):
-                response[subject][chapter]["pdfs"].append({
+                response[subject_name][chapter]["pdfs"].append({
                     "_id": str(doc.get("_id", ObjectId())),
                     "title": doc.get("pdf_title", "Untitled PDF"),
                     "video_url": "",
@@ -807,6 +812,7 @@ class StudentListVideosLecturesView(APIView):
                     "type": "pdf"
                 })
 
+        # Return the organized data
         return Response({"message": "Lectures fetched successfully", "data": response}, status=status.HTTP_200_OK)
 
 
