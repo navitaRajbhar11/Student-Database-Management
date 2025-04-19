@@ -732,6 +732,7 @@ class StudentSubmitAssignmentView(APIView):
         }, status=201)
 
 #videos
+# In your student-side API
 class StudentListVideosLecturesView(APIView):
     def get(self, request):
         selected_class = request.GET.get("class_grade")
@@ -783,9 +784,8 @@ class StudentListVideosLecturesView(APIView):
                     "_id": str(pdf.get("_id", ""))  # Add _id if needed
                 })
 
-        # Log the response data to ensure pdf_url is present
-        print(response)  # Add print statement to log the response
-
+        # Log the response data
+        print(response)  # Log the response to inspect if PDFs are included
         return Response(response, status=status.HTTP_200_OK)
 
 
