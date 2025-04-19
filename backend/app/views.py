@@ -16,6 +16,7 @@ from django.conf import settings
 from django.views import View
 from bson import Binary
 from urllib.parse import urljoin
+from urllib.parse import urlparse
 import datetime
 import uuid
 import json
@@ -347,6 +348,14 @@ class VideoCreateView(APIView):
             if not video.get("video_name") or not video.get("video_url"):
                 return Response({"error": "Each video must have a name and URL"}, status=400)
 
+            # Validate URL
+            try:
+                result = urlparse(video["video_url"])
+                if not all([result.scheme, result.netloc]):
+                    raise ValueError("Invalid video URL")
+            except ValueError:
+                return Response({"error": "Invalid video URL format"}, status=400)
+
         if existing_doc:
             # Check for duplicates
             existing_video_names = [v["video_name"] for v in existing_doc["videos"]]
@@ -410,15 +419,25 @@ class ChapterDeleteView(APIView):
 class VideoListView(APIView):
     def get(self, request):
         selected_class = request.GET.get("class")
+        selected_subject = request.GET.get("subject")
+        selected_chapter = request.GET.get("chapter")
+
         if not selected_class:
             return Response({"error": "Class is required"}, status=400)
 
         # ✅ Call the collection function properly
         collection = get_videos_lectures_collection()
-        data = list(collection.find({"class": selected_class}))
+
+        query = {"class": selected_class}
+        if selected_subject:
+            query["subject"] = selected_subject
+        if selected_chapter:
+            query["chapter"] = selected_chapter
+
+        data = list(collection.find(query))
 
         if not data:
-            return Response({"message": "No videos found for this class."}, status=404)
+            return Response({"message": "No videos found for the given filters."}, status=404)
 
         response = {}
         for doc in data:
@@ -732,7 +751,7 @@ class StudentSubmitAssignmentView(APIView):
         }, status=201)
 
 #videos
-class StudentListVideosLecturesView(APIView):
+class StudentListLecturesView(APIView):
     def get(self, request):
         selected_class = request.GET.get("class_grade")
         if not selected_class:
@@ -744,46 +763,63 @@ class StudentListVideosLecturesView(APIView):
         if not data:
             return Response({"message": "No lectures found for this class."}, status=status.HTTP_404_NOT_FOUND)
 
+        # Organize data by subjects and chapters
         response = {}
         for doc in data:
             subject = doc.get("subject")
             chapter = doc.get("chapter")
+            if subject not in response:
+                response[subject] = []
+            response[subject].append(chapter)
+
+        return Response(response, status=status.HTTP_200_OK)
+
+# views.py
+class StudentListChaptersView(APIView):
+    def get(self, request):
+        subject = request.GET.get("subject")
+        if not subject:
+            return Response({"error": "Subject is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        collection = get_videos_lectures_collection()
+        data = list(collection.find({"subject": subject}))
+
+        if not data:
+            return Response({"message": "No chapters found for this subject."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Organize data by chapters
+        response = {}
+        for doc in data:
+            chapter = doc.get("chapter")
+            if subject not in response:
+                response[subject] = []
+            response[subject].append(chapter)
+
+        return Response(response, status=status.HTTP_200_OK)
+
+# views.py
+class StudentListVideosView(APIView):
+    def get(self, request):
+        subject = request.GET.get("subject")
+        chapter = request.GET.get("chapter")
+        if not subject or not chapter:
+            return Response({"error": "Subject and Chapter are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        collection = get_videos_lectures_collection()
+        data = list(collection.find({"subject": subject, "chapter": chapter}))
+
+        if not data:
+            return Response({"message": "No videos or PDFs found for this subject and chapter."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Organize data by subject and chapter
+        response = {}
+        for doc in data:
             videos = doc.get("videos", [])
             pdfs = doc.get("pdfs", [])
-            description = doc.get("description", "")
-
-            if subject not in response:
-                response[subject] = {}
-
-            if chapter not in response[subject]:
-                response[subject][chapter] = {
-                    "videos": [],
-                    "pdfs": []
-                }
-
-            # Log video details to check if title exists
-            for video in videos:
-                print(f"Video Title: {video.get('title')}, Video Description: {video.get('description')}")
-                response[subject][chapter]["videos"].append({
-                    "title": video.get("title", "Video"),
-                    "video_url": video.get("video_url", ""),
-                    "pdf_url": "",
-                    "description": video.get("description", description),
-                    "type": "video",
-                    "_id": str(video.get("_id", ""))  # Add _id if needed
-                })
-
-            # Log PDF details to check if title exists
-            for pdf in pdfs:
-                print(f"PDF Title: {pdf.get('title')}, PDF Description: {pdf.get('description')}")
-                response[subject][chapter]["pdfs"].append({
-                    "title": pdf.get("title", "PDF Notes"),
-                    "video_url": "",
-                    "pdf_url": pdf.get("url", ""),
-                    "description": pdf.get("description", description),
-                    "type": "pdf",
-                    "_id": str(pdf.get("_id", ""))  # Add _id if needed
-                })
+            response = {
+                "videos": videos,
+                "pdfs": pdfs
+            }
 
         return Response(response, status=status.HTTP_200_OK)
 
