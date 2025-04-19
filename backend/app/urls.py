@@ -30,43 +30,43 @@ from .views import (
 )
 
 urlpatterns = [
-    # Admin Endpoints
+    # **Admin Endpoints**
     path('admin/login/', AdminLoginView.as_view(), name='admin-login'),
-    path('admin/create-student/', CreateStudentView.as_view(), name='create_student'),  # StudentRecordCreate.jsx
-    path('admin/views-student/', ListStudentsView.as_view(), name='views_student'),  # ViewRecord.jsx
-    path('admin/delete-student/<str:student_id>/', AdminDeleteStudentView.as_view(), name='delete-student'),  # delete record
-    path('admin/create-assignment/', AdminCreateAssignmentView.as_view(), name='create_assignment'),  # Assignment.jsx
-    path('admin/delete-assignment/<str:assignment_id>/', AdminDeleteAssignmentView.as_view(), name='delete_assignment'),  # assignment delete
-    path('admin/list-assignment/', AdminListAssignmentView.as_view(), name='list_assignment'),  # AssigbmentList.jsx
-    path("admin/list-submissions/", ListSubmissionsView.as_view(), name="list_submissions"),  # SListSubmission
+    path('admin/create-student/', CreateStudentView.as_view(), name='create_student'),  # Student Record Creation
+    path('admin/views-student/', ListStudentsView.as_view(), name='views_student'),  # View Student Records
+    path('admin/delete-student/<str:student_id>/', AdminDeleteStudentView.as_view(), name='delete-student'),  # Delete Student Record
+    path('admin/create-assignment/', AdminCreateAssignmentView.as_view(), name='create_assignment'),  # Create Assignment
+    path('admin/delete-assignment/<str:assignment_id>/', AdminDeleteAssignmentView.as_view(), name='delete_assignment'),  # Delete Assignment
+    path('admin/list-assignment/', AdminListAssignmentView.as_view(), name='list_assignment'),  # List Assignments
+    path("admin/list-submissions/", ListSubmissionsView.as_view(), name="list_submissions"),  # List Submissions
     path("admin/update-submission-status/<str:submission_id>/", AdminUpdateSubmissionView.as_view(), name="update_submission_status"),
-   
-    # Create or append video to a chapter
-    path('admin/create-videos/', VideoCreateView.as_view(), name='video-create'),
+    
+    # **Video Management (Admin)**
+    path('admin/create-videos/', VideoCreateView.as_view(), name='video-create'),  # Create Video
+    path('admin/videos/delete/', VideoDeleteView.as_view(), name='video-delete'),  # Delete Video
+    path('admin/list-videos/', VideoListView.as_view(), name='video-list'),  # List Videos
 
-    # Delete a specific video from a chapter
-    path('admin/videos/delete/', VideoDeleteView.as_view(), name='video-delete'),
+    # **Chapter and Subject Management**
+    path('admin/chapters/<str:class_name>/<str:subject>/<str:chapter>/', ChapterDeleteView.as_view(), name='chapter-delete'),  # Delete Chapter
+    path('admin/subjects/', ListSubjectsByClassView.as_view(), name='list-subjects-by-class'),  # List Subjects by Class
 
-    # List all videos for a class grouped by subject > chapter
-    path('admin/list-videos/', VideoListView.as_view(), name='video-list'),
+    # **Schedule Management (Admin)**
+    path('admin/create-schedule/', CreateScheduleView.as_view(), name='create_schedule'),  # Create Schedule
+    path("admin/list-schedule/", ListSchedulesView.as_view(), name="list_schedule"),  # List Schedules
+    path('admin/delete-schedule/<str:schedule_id>/', AdminDeleteScheduleView.as_view(), name='delete_schedule'),  # Delete Schedule
 
-    # Delete an entire chapter
-    path('admin/chapters/<str:class_name>/<str:subject>/<str:chapter>/', ChapterDeleteView.as_view(), name='chapter-delete'),
-    path('admin/subjects/', ListSubjectsByClassView.as_view(), name='list-subjects-by-class'),
-
-    path("admin/delete-submission/<str:submission_id>/", AdminDeleteSubmissionView.as_view(), name="delete_submission"),
-    path('admin/create-schedule/', CreateScheduleView.as_view(), name='create_schedule'),  # CreateSchedule.jsx
-    path("admin/list-schedule/", ListSchedulesView.as_view(), name="list_schedule"),
-    path('admin/delete-schedule/<str:schedule_id>/', AdminDeleteScheduleView.as_view(), name='delete_schedule'),
-    path("admin/view-queries/", AdminViewQueries.as_view(), name="view_queries"),
-    path("admin/delete-query/<str:query_id>/", AdminDeleteQuery.as_view(), name="delete_query"),
-
-    # Student Endpoints
-    path('student/login/', StudentLoginView.as_view(), name='student_login'),
-    path('student/profile/', StudentProfileView.as_view(), name='student-profile'),
-    path('student/list-assignments/', StudentListAssignmentsView.as_view(), name='list_assignments'),
-    path('student/submit-assignment/', StudentSubmitAssignmentView.as_view(), name='submit_assignment'),
-    path('student/list-videos-lectures/', StudentListVideosLecturesView.as_view(), name='list_videos_lectures'),
-    path('student/schedule/', StudentScheduleView.as_view(), name='student_schedule'), 
-    path("student/upload-query/", StudentQueryView.as_view(), name="upload_query"),
+    # **Queries Management (Admin)**
+    path("admin/view-queries/", AdminViewQueries.as_view(), name="view_queries"),  # View Queries
+    path("admin/delete-query/<str:query_id>/", AdminDeleteQuery.as_view(), name="delete_query"),  # Delete Query
+    
+    # **Student Endpoints**
+    path('student/login/', StudentLoginView.as_view(), name='student-login'),  # Student Login
+    path('student/profile/', StudentProfileView.as_view(), name='student-profile'),  # Student Profile
+    path('student/list-assignments/', StudentListAssignmentsView.as_view(), name='list_assignments'),  # List Assignments
+    path('student/submit-assignment/', StudentSubmitAssignmentView.as_view(), name='submit_assignment'),  # Submit Assignment
+    path('student/lectures/', StudentListLecturesView.as_view(), name='student-list-lectures'),  # List Lectures
+    path('student/lectures/chapters/', StudentListChaptersView.as_view(), name='student-list-chapters'),  # List Chapters
+    path('student/lectures/content/', StudentListVideosView.as_view(), name='student-list-videos'),  # List Videos & PDFs
+    path('student/schedule/', StudentScheduleView.as_view(), name='student-schedule'),  # Student Schedule
+    path("student/upload-query/", StudentQueryView.as_view(), name="upload_query"),  # Student Query Upload
 ]
