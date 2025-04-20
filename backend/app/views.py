@@ -750,21 +750,20 @@ class StudentSubmitAssignmentView(APIView):
             "download_url": download_url
         }, status=201)
 
-#videos
 
+#videos
 class StudentListVideosLecturesView(APIView):
     def get(self, request):
         subject = request.GET.get("subject")
         class_grade = request.GET.get("class_grade")
 
-        # Check if class_grade is provided
         if not class_grade:
             return Response({"error": "class_grade is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         collection = get_videos_lectures_collection()
 
-        # Filter by class_grade (and optionally subject if provided)
-        query = {"class_grade": class_grade}
+        # Admin side uses "class" instead of "class_grade"
+        query = {"class": class_grade}
         if subject:
             query["subject"] = subject
 
@@ -773,46 +772,54 @@ class StudentListVideosLecturesView(APIView):
         except Exception as e:
             return Response({"error": f"Error fetching data: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Return an empty response with a message instead of 404 if no data found
         if not data:
             return Response({"message": "No lectures found.", "data": {}}, status=status.HTTP_200_OK)
 
-        # Organize the data by subject and chapter
+        # Format the response: subject -> chapter -> videos/pdf
         response = {}
 
         for doc in data:
             subject_name = doc.get("subject", "Unknown Subject")
             chapter = doc.get("chapter", "Unknown Chapter")
+            videos = doc.get("videos", [])
 
-            # Initialize subject and chapter in response
             if subject_name not in response:
                 response[subject_name] = {}
+
             if chapter not in response[subject_name]:
-                response[subject_name][chapter] = {"videos": [], "pdfs": []}
+                response[subject_name][chapter] = {
+                    "videos": [],
+                    "pdfs": []
+                }
 
-            # Append video data if available
-            if doc.get("video_url"):
-                response[subject_name][chapter]["videos"].append({
-                    "_id": str(doc.get("_id", ObjectId())),
-                    "title": doc.get("video_title", "Untitled Video"),
-                    "video_url": doc.get("video_url"),
-                    "pdf_url": "",
-                    "description": doc.get("description", ""),
-                    "type": "video"
-                })
+            for video in videos:
+                video_name = video.get("video_name", "Untitled")
+                video_url = video.get("video_url", "")
+                pdf_url = video.get("pdf_url", "")
+                description = video.get("description", "")
 
-            # Append PDF data if available
-            if doc.get("pdf_url"):
-                response[subject_name][chapter]["pdfs"].append({
-                    "_id": str(doc.get("_id", ObjectId())),
-                    "title": doc.get("pdf_title", "Untitled PDF"),
-                    "video_url": "",
-                    "pdf_url": doc.get("pdf_url"),
-                    "description": doc.get("description", ""),
-                    "type": "pdf"
-                })
+                base_data = {
+                    "_id": str(doc.get("_id")),
+                    "title": video_name,
+                    "description": description
+                }
 
-        # Return the organized data
+                if video_url:
+                    response[subject_name][chapter]["videos"].append({
+                        **base_data,
+                        "video_url": video_url,
+                        "pdf_url": "",
+                        "type": "video"
+                    })
+
+                if pdf_url:
+                    response[subject_name][chapter]["pdfs"].append({
+                        **base_data,
+                        "video_url": "",
+                        "pdf_url": pdf_url,
+                        "type": "pdf"
+                    })
+
         return Response({"message": "Lectures fetched successfully", "data": response}, status=status.HTTP_200_OK)
 
 
