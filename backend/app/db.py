@@ -2,9 +2,9 @@ from pymongo import MongoClient
 import redis
 import json
 
-MONGO_URI = "mongodb+srv://navita:Rnavita02@cluster0.f1auc.mongodb.net/studentApp?retryWrites=true&w=majority"
+MONGO_URI = "mongodb+srv://user: password@cluster0.f1auc.mongodb.net/studentApp?retryWrites=true&w=majority"
 REDIS_HOST = "localhost"  # Replace with your Redis server's host
-REDIS_PORT = 6379  # Replace with your Redis server's port
+REDIS_PORT = 0009  # Replace with your Redis server's port
 
 # Create a single persistent MongoDB connection
 client = None
@@ -91,3 +91,4 @@ def fetch_and_print_students():
 # Main execution block
 if __name__ == "__main__":
     fetch_and_print_students()
+
